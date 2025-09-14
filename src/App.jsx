@@ -1,0 +1,466 @@
+import React from "react";
+
+/* =========================
+   0) CONFIG
+   ========================= */
+const API_KEY  = "AIzaSyCjjW3RjE6y026TTk3qLXDEs-i6RWor30g";           // your API key
+const SHEET_ID = "16Q3GRHir6zs3Vc1M30F_2cpTzp48muh2bCTlmlHdnco";      // <-- new sheet ID
+const TAB_NAME = "Sheet1";
+
+/* =========================
+   1) FETCH + CACHE (TTL=0 => always fresh on page load)
+   ========================= */
+const CACHE_TTL_MS = 0; // fetch fresh each load
+
+function cacheKey(sheetId, tabName, range = "A:Z") {
+  return `tinyml:sheets:${sheetId}:${tabName}:${range}`;
+}
+
+async function fetchFromSheetsAPI({ apiKey, sheetId, tabName, range = "A:Z" }) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?includeGridData=true&ranges=${encodeURIComponent(
+    `${tabName}!${range}`
+  )}&key=${apiKey}`;
+
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Sheets API ${res.status}`);
+  const data = await res.json();
+
+  const grid = data?.sheets?.[0]?.data?.[0]?.rowData || [];
+  let headers = [];
+  const rows = [];
+
+  for (const row of grid) {
+    const cells = row?.values || [];
+    const vals = cells.map((c) => ({
+      text: c?.formattedValue ?? "",
+      link: c?.hyperlink ?? null,
+      runs: c?.textFormatRuns ?? null,
+    }));
+
+    const empty = vals.every((v) => !v.text && !v.link && !(v.runs?.length));
+    if (empty) continue;
+
+    if (headers.length === 0) {
+      headers = vals.map((v) => (v.text || "").trim());
+      continue;
+    }
+
+    const obj = {};
+    for (let i = 0; i < headers.length; i++) {
+      const h = headers[i] || `Col${i + 1}`;
+      const v = vals[i] || { text: "", link: null, runs: null };
+
+      if (v.runs && v.runs.length) {
+        const full = v.text || "";
+        let html = "";
+        for (let idx = 0; idx < v.runs.length; idx++) {
+          const start = v.runs[idx].startIndex ?? 0;
+          const end   = v.runs[idx + 1]?.startIndex ?? full.length;
+          const slice = full.slice(start, end);
+          const href  = v.runs[idx].format?.link?.uri;
+          html += href
+            ? `<a href="${href}" target="_blank" rel="noreferrer" class="underline decoration-white/40 hover:text-white underline-offset-2">${slice}</a>`
+            : slice;
+        }
+        obj[h] = html;
+      } else if (v.link) {
+        obj[h] = `<a href="${v.link}" target="_blank" rel="noreferrer" class="underline decoration-white/40 hover:text-white underline-offset-2">${v.text || v.link}</a>`;
+      } else {
+        obj[h] = (v.text || "").replace(/\n/g, "<br/>");
+      }
+    }
+    rows.push(obj);
+  }
+
+  return { headers, rows };
+}
+
+async function cachedSheet({ apiKey, sheetId, tabName, range = "A:Z", force = false }) {
+  const key = cacheKey(sheetId, tabName, range);
+  const now = Date.now();
+
+  const raw = localStorage.getItem(key);
+  if (!force && raw) {
+    try {
+      const { ts, payload } = JSON.parse(raw);
+      if (now - ts < CACHE_TTL_MS && payload?.rows?.length) {
+        fetchFromSheetsAPI({ apiKey, sheetId, tabName, range })
+          .then((fresh) => localStorage.setItem(key, JSON.stringify({ ts: Date.now(), payload: fresh })))
+          .catch(() => {});
+        return { ...payload, fromCache: true, lastUpdated: ts };
+      }
+    } catch {}
+  }
+
+  const payload = await fetchFromSheetsAPI({ apiKey, sheetId, tabName, range });
+  localStorage.setItem(key, JSON.stringify({ ts: now, payload }));
+  return { ...payload, fromCache: false, lastUpdated: now };
+}
+
+function useSheet({ apiKey, sheetId, tabName }) {
+  const [state, setState] = React.useState({
+    headers: [],
+    rows: [],
+    loading: true,
+    error: "",
+    lastUpdated: null,
+    fromCache: false,
+  });
+
+  React.useEffect(() => {
+    let on = true;
+    (async () => {
+      try {
+        const { headers, rows, fromCache, lastUpdated } = await cachedSheet({
+          apiKey, sheetId, tabName, force: false,
+        });
+        if (on) setState({ headers, rows, loading: false, error: "", lastUpdated, fromCache });
+      } catch (e) {
+        if (on) setState((s) => ({ ...s, loading: false, error: String(e) }));
+      }
+    })();
+    return () => { on = false; };
+  }, [apiKey, sheetId, tabName]);
+
+  return state;
+}
+
+/* =========================
+   2) RENDER HELPERS
+   ========================= */
+const H   = ({ html }) => <span dangerouslySetInnerHTML={{ __html: html || "" }} />;
+const get = (row, key) => row?.[key] || "";
+
+function stripHtml(html = "") {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return div.textContent || div.innerText || "";
+}
+
+// remove any duration like "(~3 weeks)" or "(~4.5 weeks)"
+function stripWeeks(text = "") {
+  return text.replace(/\s*\(\s*~?[^)]*\bweeks?\b[^)]*\)\s*/gi, "").trim();
+}
+
+// parse anchors from html, fallback to comma/newline split
+function htmlToLinkItems(html) {
+  if (!html) return [];
+  try {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const a = Array.from(doc.querySelectorAll("a"));
+    if (a.length) {
+      return a.map((el) => ({
+        label: (el.textContent || el.href || "").trim(),
+        href: el.getAttribute("href") || el.href,
+      }));
+    }
+  } catch {}
+  return String(html)
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .split(/[\n,]+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((label) => ({ label, href: undefined }));
+}
+
+// collapsible group: whole section is a dropdown
+function CollapsibleLinks({ title, html }) {
+  if (!html) return null;
+  const items = htmlToLinkItems(html);
+  if (!items.length) return null;
+
+  return (
+    <details className="rounded-xl border border-white/10 bg-white/5 open:bg-white/7">
+      <summary className="list-none cursor-pointer select-none px-3 py-2 text-sm text-white/85 hover:text-white flex items-center justify-between">
+        <span className="text-[11px] uppercase tracking-wide">{title}</span>
+        <span className="text-[11px] text-white/50">{items.length}</span>
+      </summary>
+      <ul className="px-4 pb-3 pt-1 space-y-2 text-[15px] leading-6">
+        {items.map((it, i) => (
+          <li key={i} className="flex gap-2">
+            <span className="mt-2 block h-[6px] w-[6px] rounded-full bg-white/30 shrink-0" />
+            {it.href ? (
+              <a
+                className="underline decoration-white/40 underline-offset-2 hover:text-white"
+                href={it.href}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {it.label}
+              </a>
+            ) : (
+              <span className="text-white/90">{it.label}</span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** =============== Two-pass module fill with "Special Topics" cutoff ===============
+ * Goal:
+ *  - Build "Part …: <Block Title>" for every row in a part (even if the block title appears later)
+ *  - As soon as a row's Lecture starts with "Special Topics", hide any part label
+ *    for that row and all rows after it.
+ */
+function withDisplayModule(rows) {
+  // Pass 1: compute part per row & first block title per part
+  const partAtRow   = new Array(rows.length).fill("");
+  const blockByPart = {};
+  let currentPart   = "";
+
+  for (let i = 0; i < rows.length; i++) {
+    const rawModule = stripHtml(get(rows[i], "Module"));
+    if (rawModule) {
+      if (/^part\s+/i.test(rawModule)) {
+        // keep exact text (I/II/III or 1/2/3)
+        currentPart = rawModule.trim().replace(/\s+/g, " ");
+      } else {
+        const block = stripWeeks(rawModule);
+        if (currentPart && block && !blockByPart[currentPart]) {
+          blockByPart[currentPart] = block; // first seen wins
+        }
+      }
+    }
+    partAtRow[i] = currentPart;
+  }
+
+  // Pass 2: attach combined label; stop after "Special Topics"
+  let afterSpecialTopics = false;
+
+  return rows.map((r, i) => {
+    const lectureText = stripHtml(get(r, "Lecture"));
+    if (/^\s*Special\s+Topics\b/i.test(lectureText)) {
+      afterSpecialTopics = true;
+    }
+
+    const part  = afterSpecialTopics ? "" : partAtRow[i];
+    const block = afterSpecialTopics ? "" : (part ? (blockByPart[part] || "") : "");
+    const combined = part || block ? [part, block].filter(Boolean).join(": ") : "";
+
+    return { ...r, _moduleCombined: combined };
+  });
+}
+
+/* =========================
+   3) SCHEDULE CARDS
+   ========================= */
+function ScheduleCards({ apiKey, sheetId, tabName }) {
+  const { rows, loading, error, lastUpdated, fromCache } = useSheet({ apiKey, sheetId, tabName });
+  const displayRows = withDisplayModule(rows);
+
+  return (
+    <div>
+      <div className="mb-4 text-xs text-white/60">
+        {lastUpdated
+          ? `Last loaded: ${new Date(lastUpdated).toLocaleString()} ${fromCache ? "(cached)" : "(live)"}`
+          : "Loading…"}
+      </div>
+
+      {loading && !displayRows.length && <div className="text-white/70">Loading schedule…</div>}
+      {error && <div className="text-rose-300">Error: {error}</div>}
+      {!loading && !displayRows.length && !error && <div className="text-white/70">No items yet.</div>}
+
+      {!error && displayRows.length > 0 && (
+        <div className="grid gap-6">
+          {displayRows.map((r, i) => {
+            const date      = stripHtml(get(r, "Date"));
+            const lecture   = get(r, "Lecture");
+            const topics    = get(r, "Topics");
+            const slides    = get(r, "Slides & Videos");
+            const tutorial  = get(r, "Tutorial");
+            const readings  = get(r, "Readings");
+            const assignment= get(r, "Assignment");
+            const quizzes   = get(r, "Quizzes");
+            const moduleCombined = r._moduleCombined;
+
+            if (!date && !lecture && !topics && !slides) return null;
+
+            return (
+              <article
+                key={i}
+                className="rounded-2xl border border-white/10 bg-white/[0.06] p-6 text-[15px] leading-6 shadow-sm shadow-black/5"
+              >
+                {/* header: lecture left, date right, full module heading next to lecture */}
+                <div className="flex flex-wrap items-baseline justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    {lecture && (
+                      <div className="text-white font-semibold tracking-tight">
+                        <H html={lecture} />
+                      </div>
+                    )}
+                    {moduleCombined && (
+                      <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-0.5 text-[11px] text-white/75">
+                        {moduleCombined}
+                      </span>
+                    )}
+                  </div>
+                  {date && <div className="text-white/80 font-medium">{date}</div>}
+                </div>
+
+                <div className="mt-5 grid gap-6 lg:grid-cols-2">
+                  {/* left: topics */}
+                  <div>
+                    {topics && (
+                      <div>
+                        <div className="text-[11px] uppercase tracking-wide text-white/55">Topics</div>
+                        <div className="mt-2 text-white/90">
+                          <H html={topics} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* right: resources — dropdowns for the three sections */}
+                  <div className="grid gap-4">
+                    <CollapsibleLinks title="Slides & Videos" html={slides} />
+                    <CollapsibleLinks title="Tutorial" html={tutorial} />
+                    <CollapsibleLinks title="Readings" html={readings} />
+                    {(assignment || quizzes) && (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        {/* keep these as simple lists (not dropdowns) */}
+                        {assignment && (
+                          <div>
+                            <div className="text-[11px] uppercase tracking-wide text-white/55">Assignment</div>
+                            <ul className="mt-2 space-y-2 text-[15px] leading-6">
+                              {htmlToLinkItems(assignment).map((it, j) => (
+                                <li key={j} className="flex gap-2">
+                                  <span className="mt-2 block h-[6px] w-[6px] rounded-full bg-white/30 shrink-0" />
+                                  {it.href ? (
+                                    <a className="underline decoration-white/40 underline-offset-2 hover:text-white" href={it.href} target="_blank" rel="noreferrer">
+                                      {it.label}
+                                    </a>
+                                  ) : (
+                                    <span className="text-white/90">{it.label}</span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {quizzes && (
+                          <div>
+                            <div className="text-[11px] uppercase tracking-wide text-white/55">Quizzes</div>
+                            <ul className="mt-2 space-y-2 text-[15px] leading-6">
+                              {htmlToLinkItems(quizzes).map((it, j) => (
+                                <li key={j} className="flex gap-2">
+                                  <span className="mt-2 block h-[6px] w-[6px] rounded-full bg-white/30 shrink-0" />
+                                  {it.href ? (
+                                    <a className="underline decoration-white/40 underline-offset-2 hover:text-white" href={it.href} target="_blank" rel="noreferrer">
+                                      {it.label}
+                                    </a>
+                                  ) : (
+                                    <span className="text-white/90">{it.label}</span>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =========================
+   4) PAGE CHROME
+   ========================= */
+function Section({ title, eyebrow, children }) {
+  return (
+    <section className="mx-auto w-full max-w-6xl px-4 py-12">
+      <div className="mb-6">
+        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/80">
+          {eyebrow}
+        </div>
+        <h2 className="mt-3 text-3xl font-semibold text-white">{title}</h2>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+export default function App() {
+  const [page, setPage] = React.useState("schedule");
+
+  const NavBtn = ({ id, label }) => (
+    <button
+      onClick={() => setPage(id)}
+      className={`rounded-xl px-3 py-2 text-sm transition border ${
+        page === id
+          ? "border-white/40 bg-white/15 text-white"
+          : "border-white/10 bg-white/5 text-white/70 hover:text-white"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white">
+      <header className="sticky top-0 z-10 border-b border-white/10 bg-slate-900/80 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-xl bg-emerald-400/20 ring-1 ring-emerald-300/40" />
+            <span className="font-semibold">TinyML @ Penn</span>
+          </div>
+          <nav className="flex items-center gap-2">
+            <NavBtn id="home" label="Home" />
+            <NavBtn id="schedule" label="Schedule" />
+            <NavBtn id="staff" label="Staff" />
+            <NavBtn id="syllabus" label="Syllabus" />
+          </nav>
+        </div>
+      </header>
+
+      {page === "home" && (
+        <main className="grid place-items-center px-4 py-24">
+          <div className="text-center max-w-2xl">
+            <h1 className="text-5xl font-bold text-emerald-400">Tiny Machine Learning</h1>
+            <p className="mt-4 text-white/70">
+              Build embedded ML systems on microcontrollers—from sensing to models to deployment.
+            </p>
+          </div>
+        </main>
+      )}
+
+      {page === "schedule" && (
+        <Section eyebrow="Fall 2025" title="Course Schedule">
+          <ScheduleCards apiKey={API_KEY} sheetId={SHEET_ID} tabName={TAB_NAME} />
+        </Section>
+      )}
+
+      {page === "staff" && (
+        <Section eyebrow="Course Team" title="Staff">
+          <div className="text-white/70">Add staff info here.</div>
+        </Section>
+      )}
+
+      {page === "syllabus" && (
+        <Section eyebrow="Policies & Plan" title="Syllabus">
+          <div className="text-white/70">Add syllabus info here.</div>
+        </Section>
+      )}
+
+      <footer className="mx-auto max-w-6xl px-4 pb-12 text-white/50">
+        <div className="flex items-center justify-between">
+          <p className="text-xs">© {new Date().getFullYear()} TinyML @ Penn</p>
+          <div className="flex gap-4 text-xs">
+            <a href="#" className="hover:text-white">GitHub</a>
+            <a href="#" className="hover:text-white">Canvas</a>
+            <a href="#" className="hover:text-white">Contact</a>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
