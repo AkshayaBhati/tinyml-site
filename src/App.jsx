@@ -8,6 +8,26 @@ const SHEET_ID = "16Q3GRHir6zs3Vc1M30F_2cpTzp48muh2bCTlmlHdnco";      // <-- new
 const TAB_NAME = "Sheet1";
 
 /* =========================
+   THEME HOOK
+   ========================= */
+function useTheme() {
+  const [theme, setTheme] = React.useState(
+    () =>
+      localStorage.getItem("theme") ||
+      (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+  );
+
+  React.useEffect(() => {
+    localStorage.setItem("theme", theme);
+    const root = document.documentElement;
+    if (theme === "dark") root.classList.add("dark");
+    else root.classList.remove("dark");
+  }, [theme]);
+
+  return { theme, toggle: () => setTheme(t => (t === "dark" ? "light" : "dark")) };
+}
+
+/* =========================
    1) FETCH + CACHE (TTL=0 => always fresh on page load)
    ========================= */
 const CACHE_TTL_MS = 0; // fetch fresh each load
@@ -59,12 +79,12 @@ async function fetchFromSheetsAPI({ apiKey, sheetId, tabName, range = "A:Z" }) {
           const slice = full.slice(start, end);
           const href  = v.runs[idx].format?.link?.uri;
           html += href
-            ? `<a href="${href}" target="_blank" rel="noreferrer" class="underline decoration-white/40 hover:text-white underline-offset-2">${slice}</a>`
+            ? `<a href="${href}" target="_blank" rel="noreferrer" class="underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white">${slice}</a>`
             : slice;
         }
         obj[h] = html;
       } else if (v.link) {
-        obj[h] = `<a href="${v.link}" target="_blank" rel="noreferrer" class="underline decoration-white/40 hover:text-white underline-offset-2">${v.text || v.link}</a>`;
+        obj[h] = `<a href="${v.link}" target="_blank" rel="noreferrer" class="underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white">${v.text || v.link}</a>`;
       } else {
         obj[h] = (v.text || "").replace(/\n/g, "<br/>");
       }
@@ -137,12 +157,10 @@ function stripHtml(html = "") {
   return div.textContent || div.innerText || "";
 }
 
-// remove any duration like "(~3 weeks)" or "(~4.5 weeks)"
 function stripWeeks(text = "") {
   return text.replace(/\s*\(\s*~?[^)]*\bweeks?\b[^)]*\)\s*/gi, "").trim();
 }
 
-// parse anchors from html, fallback to comma/newline split
 function htmlToLinkItems(html) {
   if (!html) return [];
   try {
@@ -164,25 +182,24 @@ function htmlToLinkItems(html) {
     .map((label) => ({ label, href: undefined }));
 }
 
-// collapsible group: whole section is a dropdown
 function CollapsibleLinks({ title, html }) {
   if (!html) return null;
   const items = htmlToLinkItems(html);
   if (!items.length) return null;
 
   return (
-    <details className="rounded-xl border border-white/10 bg-white/5 open:bg-white/7">
-      <summary className="list-none cursor-pointer select-none px-3 py-2 text-sm text-white/85 hover:text-white flex items-center justify-between">
+    <details className="rounded-xl border border-black/10 bg-black/5 open:bg-black/7 dark:border-white/10 dark:bg-white/5">
+      <summary className="list-none cursor-pointer select-none px-3 py-2 text-sm text-slate-800 hover:text-slate-900 dark:text-white/85 dark:hover:text-white flex items-center justify-between">
         <span className="text-[11px] uppercase tracking-wide">{title}</span>
-        <span className="text-[11px] text-white/50">{items.length}</span>
+        <span className="text-[11px] text-slate-500 dark:text-white/50">{items.length}</span>
       </summary>
       <ul className="px-4 pb-3 pt-1 space-y-2 text-[15px] leading-6">
         {items.map((it, i) => (
           <li key={i} className="flex gap-2">
-            <span className="mt-2 block h-[6px] w-[6px] rounded-full bg-white/30 shrink-0" />
+            <span className="mt-2 block h-[6px] w-[6px] rounded-full bg-slate-300 dark:bg-white/30 shrink-0" />
             {it.href ? (
               <a
-                className="underline decoration-white/40 underline-offset-2 hover:text-white"
+                className="underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white"
                 href={it.href}
                 target="_blank"
                 rel="noreferrer"
@@ -190,7 +207,7 @@ function CollapsibleLinks({ title, html }) {
                 {it.label}
               </a>
             ) : (
-              <span className="text-white/90">{it.label}</span>
+              <span className="text-slate-800 dark:text-white/90">{it.label}</span>
             )}
           </li>
         ))}
@@ -199,14 +216,8 @@ function CollapsibleLinks({ title, html }) {
   );
 }
 
-/** =============== Two-pass module fill with "Special Topics" cutoff ===============
- * Goal:
- *  - Build "Part …: <Block Title>" for every row in a part (even if the block title appears later)
- *  - As soon as a row's Lecture starts with "Special Topics", hide any part label
- *    for that row and all rows after it.
- */
+/** Two-pass module fill with "Special Topics" cutoff */
 function withDisplayModule(rows) {
-  // Pass 1: compute part per row & first block title per part
   const partAtRow   = new Array(rows.length).fill("");
   const blockByPart = {};
   let currentPart   = "";
@@ -215,31 +226,28 @@ function withDisplayModule(rows) {
     const rawModule = stripHtml(get(rows[i], "Module"));
     if (rawModule) {
       if (/^part\s+/i.test(rawModule)) {
-        // keep exact text (I/II/III or 1/2/3)
         currentPart = rawModule.trim().replace(/\s+/g, " ");
       } else {
         const block = stripWeeks(rawModule);
         if (currentPart && block && !blockByPart[currentPart]) {
-          blockByPart[currentPart] = block; // first seen wins
+          blockByPart[currentPart] = block;
         }
       }
     }
     partAtRow[i] = currentPart;
   }
 
-  // Pass 2: attach combined label; stop after "Special Topics"
   let afterSpecialTopics = false;
 
-  return rows.map((r, i) => {
+  return rows.map((r) => {
     const lectureText = stripHtml(get(r, "Lecture"));
     if (/^\s*Special\s+Topics\b/i.test(lectureText)) {
       afterSpecialTopics = true;
     }
 
-    const part  = afterSpecialTopics ? "" : partAtRow[i];
+    const part  = afterSpecialTopics ? "" : partAtRow.shift();
     const block = afterSpecialTopics ? "" : (part ? (blockByPart[part] || "") : "");
     const combined = part || block ? [part, block].filter(Boolean).join(": ") : "";
-
     return { ...r, _moduleCombined: combined };
   });
 }
@@ -253,15 +261,15 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
 
   return (
     <div>
-      <div className="mb-4 text-xs text-white/60">
+      <div className="mb-4 text-xs text-slate-600 dark:text-white/60">
         {lastUpdated
           ? `Last loaded: ${new Date(lastUpdated).toLocaleString()} ${fromCache ? "(cached)" : "(live)"}`
           : "Loading…"}
       </div>
 
-      {loading && !displayRows.length && <div className="text-white/70">Loading schedule…</div>}
-      {error && <div className="text-rose-300">Error: {error}</div>}
-      {!loading && !displayRows.length && !error && <div className="text-white/70">No items yet.</div>}
+      {loading && !displayRows.length && <div className="text-slate-600 dark:text-white/70">Loading schedule…</div>}
+      {error && <div className="text-rose-600 dark:text-rose-300">Error: {error}</div>}
+      {!loading && !displayRows.length && !error && <div className="text-slate-600 dark:text-white/70">No items yet.</div>}
 
       {!error && displayRows.length > 0 && (
         <div className="grid gap-6">
@@ -281,23 +289,25 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
             return (
               <article
                 key={i}
-                className="rounded-2xl border border-white/10 bg-white/[0.06] p-6 text-[15px] leading-6 shadow-sm shadow-black/5"
+                className="rounded-2xl border border-black/10 bg-black/5 p-6 text-[15px] leading-6 shadow-sm shadow-black/5
+                           dark:border-white/10 dark:bg-white/[0.06]"
               >
                 {/* header: lecture left, date right, full module heading next to lecture */}
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
                   <div className="flex items-center gap-3">
                     {lecture && (
-                      <div className="text-white font-semibold tracking-tight">
+                      <div className="font-semibold tracking-tight text-slate-900 dark:text-white">
                         <H html={lecture} />
                       </div>
                     )}
                     {moduleCombined && (
-                      <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-0.5 text-[11px] text-white/75">
+                      <span className="rounded-full border border-black/10 bg-black/5 px-2.5 py-0.5 text-[11px] text-slate-700
+                                       dark:border-white/15 dark:bg-white/10 dark:text-white/75">
                         {moduleCombined}
                       </span>
                     )}
                   </div>
-                  {date && <div className="text-white/80 font-medium">{date}</div>}
+                  {date && <div className="font-medium text-slate-800 dark:text-white/80">{date}</div>}
                 </div>
 
                 <div className="mt-5 grid gap-6 lg:grid-cols-2">
@@ -305,8 +315,8 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
                   <div>
                     {topics && (
                       <div>
-                        <div className="text-[11px] uppercase tracking-wide text-white/55">Topics</div>
-                        <div className="mt-2 text-white/90">
+                        <div className="text-[11px] uppercase tracking-wide text-slate-600 dark:text-white/55">Topics</div>
+                        <div className="mt-2 text-slate-900 dark:text-white/90">
                           <H html={topics} />
                         </div>
                       </div>
@@ -323,17 +333,17 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
                         {/* keep these as simple lists (not dropdowns) */}
                         {assignment && (
                           <div>
-                            <div className="text-[11px] uppercase tracking-wide text-white/55">Assignment</div>
+                            <div className="text-[11px] uppercase tracking-wide text-slate-600 dark:text-white/55">Assignment</div>
                             <ul className="mt-2 space-y-2 text-[15px] leading-6">
                               {htmlToLinkItems(assignment).map((it, j) => (
                                 <li key={j} className="flex gap-2">
-                                  <span className="mt-2 block h-[6px] w-[6px] rounded-full bg-white/30 shrink-0" />
+                                  <span className="mt-2 block h-[6px] w-[6px] rounded-full bg-slate-300 dark:bg-white/30 shrink-0" />
                                   {it.href ? (
-                                    <a className="underline decoration-white/40 underline-offset-2 hover:text-white" href={it.href} target="_blank" rel="noreferrer">
+                                    <a className="underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white" href={it.href} target="_blank" rel="noreferrer">
                                       {it.label}
                                     </a>
                                   ) : (
-                                    <span className="text-white/90">{it.label}</span>
+                                    <span className="text-slate-900 dark:text-white/90">{it.label}</span>
                                   )}
                                 </li>
                               ))}
@@ -342,17 +352,17 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
                         )}
                         {quizzes && (
                           <div>
-                            <div className="text-[11px] uppercase tracking-wide text-white/55">Quizzes</div>
+                            <div className="text-[11px] uppercase tracking-wide text-slate-600 dark:text-white/55">Quizzes</div>
                             <ul className="mt-2 space-y-2 text-[15px] leading-6">
                               {htmlToLinkItems(quizzes).map((it, j) => (
                                 <li key={j} className="flex gap-2">
-                                  <span className="mt-2 block h-[6px] w-[6px] rounded-full bg-white/30 shrink-0" />
+                                  <span className="mt-2 block h-[6px] w-[6px] rounded-full bg-slate-300 dark:bg-white/30 shrink-0" />
                                   {it.href ? (
-                                    <a className="underline decoration-white/40 underline-offset-2 hover:text-white" href={it.href} target="_blank" rel="noreferrer">
+                                    <a className="underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white" href={it.href} target="_blank" rel="noreferrer">
                                       {it.label}
                                     </a>
                                   ) : (
-                                    <span className="text-white/90">{it.label}</span>
+                                    <span className="text-slate-900 dark:text-white/90">{it.label}</span>
                                   )}
                                 </li>
                               ))}
@@ -379,10 +389,11 @@ function Section({ title, eyebrow, children }) {
   return (
     <section className="mx-auto w-full max-w-6xl px-4 py-12">
       <div className="mb-6">
-        <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs text-white/80">
+        <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-black/5 px-3 py-1 text-xs text-slate-700
+                        dark:border-white/15 dark:bg-white/5 dark:text-white/80">
           {eyebrow}
         </div>
-        <h2 className="mt-3 text-3xl font-semibold text-white">{title}</h2>
+        <h2 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">{title}</h2>
       </div>
       {children}
     </section>
@@ -391,14 +402,15 @@ function Section({ title, eyebrow, children }) {
 
 export default function App() {
   const [page, setPage] = React.useState("schedule");
+  const { theme, toggle } = useTheme();
 
   const NavBtn = ({ id, label }) => (
     <button
       onClick={() => setPage(id)}
       className={`rounded-xl px-3 py-2 text-sm transition border ${
         page === id
-          ? "border-white/40 bg-white/15 text-white"
-          : "border-white/10 bg-white/5 text-white/70 hover:text-white"
+          ? "border-black/20 bg-black/10 text-slate-900 dark:border-white/40 dark:bg-white/15 dark:text-white"
+          : "border-black/10 bg-black/5 text-slate-700 hover:text-slate-900 dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:text-white"
       }`}
     >
       {label}
@@ -406,11 +418,11 @@ export default function App() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white">
-      <header className="sticky top-0 z-10 border-b border-white/10 bg-slate-900/80 backdrop-blur">
+    <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-900 dark:text-white">
+      <header className="sticky top-0 z-10 border-b border-black/10 bg-white/80 backdrop-blur dark:border-white/10 dark:bg-slate-900/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-xl bg-emerald-400/20 ring-1 ring-emerald-300/40" />
+            <div className="h-8 w-8 rounded-xl bg-emerald-500/15 ring-1 ring-emerald-400/40" />
             <span className="font-semibold">TinyML @ Penn</span>
           </div>
           <nav className="flex items-center gap-2">
@@ -418,6 +430,15 @@ export default function App() {
             <NavBtn id="schedule" label="Schedule" />
             <NavBtn id="staff" label="Staff" />
             <NavBtn id="syllabus" label="Syllabus" />
+            {/* Theme toggle */}
+            <button
+              onClick={toggle}
+              className="ml-2 rounded-xl border border-black/10 bg-black/5 px-3 py-2 text-sm text-slate-700 hover:bg-black/10
+                         dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            >
+              {theme === "dark" ? "Light" : "Dark"}
+            </button>
           </nav>
         </div>
       </header>
@@ -425,8 +446,8 @@ export default function App() {
       {page === "home" && (
         <main className="grid place-items-center px-4 py-24">
           <div className="text-center max-w-2xl">
-            <h1 className="text-5xl font-bold text-emerald-400">Tiny Machine Learning</h1>
-            <p className="mt-4 text-white/70">
+            <h1 className="text-5xl font-bold text-emerald-600 dark:text-emerald-400">Tiny Machine Learning</h1>
+            <p className="mt-4 text-slate-700 dark:text-white/70">
               Build embedded ML systems on microcontrollers—from sensing to models to deployment.
             </p>
           </div>
@@ -441,23 +462,23 @@ export default function App() {
 
       {page === "staff" && (
         <Section eyebrow="Course Team" title="Staff">
-          <div className="text-white/70">Add staff info here.</div>
+          <div className="text-slate-700 dark:text-white/70">Add staff info here.</div>
         </Section>
       )}
 
       {page === "syllabus" && (
         <Section eyebrow="Policies & Plan" title="Syllabus">
-          <div className="text-white/70">Add syllabus info here.</div>
+          <div className="text-slate-700 dark:text-white/70">Add syllabus info here.</div>
         </Section>
       )}
 
-      <footer className="mx-auto max-w-6xl px-4 pb-12 text-white/50">
+      <footer className="mx-auto max-w-6xl px-4 pb-12 text-slate-600 dark:text-white/50">
         <div className="flex items-center justify-between">
           <p className="text-xs">© {new Date().getFullYear()} TinyML @ Penn</p>
           <div className="flex gap-4 text-xs">
-            <a href="#" className="hover:text-white">GitHub</a>
-            <a href="#" className="hover:text-white">Canvas</a>
-            <a href="#" className="hover:text-white">Contact</a>
+            <a href="#" className="hover:text-slate-900 dark:hover:text-white">GitHub</a>
+            <a href="#" className="hover:text-slate-900 dark:hover:text-white">Canvas</a>
+            <a href="#" className="hover:text-slate-900 dark:hover:text-white">Contact</a>
           </div>
         </div>
       </footer>
