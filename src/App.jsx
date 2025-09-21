@@ -4,7 +4,7 @@ import React from "react";
    0) CONFIG
    ========================= */
 const API_KEY  = "AIzaSyCjjW3RjE6y026TTk3qLXDEs-i6RWor30g";           // your API key
-const SHEET_ID = "16Q3GRHir6zs3Vc1M30F_2cpTzp48muh2bCTlmlHdnco";      // <-- new sheet ID
+const SHEET_ID = "16Q3GRHir6zs3Vc1M30F_2cpTzp48muh2bCTlmlHdnco";      // sheet ID
 const TAB_NAME = "Sheet1";
 
 /* =========================
@@ -157,10 +157,12 @@ function stripHtml(html = "") {
   return div.textContent || div.innerText || "";
 }
 
+// remove any duration like "(~3 weeks)"
 function stripWeeks(text = "") {
   return text.replace(/\s*\(\s*~?[^)]*\bweeks?\b[^)]*\)\s*/gi, "").trim();
 }
 
+// parse anchors from html, fallback to comma/newline split
 function htmlToLinkItems(html) {
   if (!html) return [];
   try {
@@ -218,6 +220,7 @@ function CollapsibleLinks({ title, html }) {
 
 /** Two-pass module fill with "Special Topics" cutoff */
 function withDisplayModule(rows) {
+  // Pass 1: compute part per row & first block title per part
   const partAtRow   = new Array(rows.length).fill("");
   const blockByPart = {};
   let currentPart   = "";
@@ -230,24 +233,26 @@ function withDisplayModule(rows) {
       } else {
         const block = stripWeeks(rawModule);
         if (currentPart && block && !blockByPart[currentPart]) {
-          blockByPart[currentPart] = block;
+          blockByPart[currentPart] = block; // first seen wins
         }
       }
     }
     partAtRow[i] = currentPart;
   }
 
+  // Pass 2: attach combined label; stop after "Special Topics"
   let afterSpecialTopics = false;
 
-  return rows.map((r) => {
+  return rows.map((r, i) => {
     const lectureText = stripHtml(get(r, "Lecture"));
     if (/^\s*Special\s+Topics\b/i.test(lectureText)) {
       afterSpecialTopics = true;
     }
 
-    const part  = afterSpecialTopics ? "" : partAtRow.shift();
+    const part  = afterSpecialTopics ? "" : partAtRow[i];
     const block = afterSpecialTopics ? "" : (part ? (blockByPart[part] || "") : "");
     const combined = part || block ? [part, block].filter(Boolean).join(": ") : "";
+
     return { ...r, _moduleCombined: combined };
   });
 }
@@ -400,6 +405,31 @@ function Section({ title, eyebrow, children }) {
   );
 }
 
+/* =========================
+   Floating Theme Toggle (iPhone-safe)
+   ========================= */
+function ThemeFAB({ theme, onToggle }) {
+  const label = theme === "dark" ? "Light" : "Dark";
+  return (
+    <button
+      onClick={onToggle}
+      aria-label={`Switch to ${label} mode`}
+      className="
+        fixed z-[9999]
+        px-3 py-2 rounded-full text-sm
+        border bg-white text-slate-800
+        shadow-lg shadow-black/20
+        dark:bg-slate-800 dark:text-white dark:border-white/15
+        right-[max(env(safe-area-inset-right),1rem)]
+        bottom-[max(env(safe-area-inset-bottom),1rem)]
+        border-black/10 dark:border-white/15
+      "
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function App() {
   const [page, setPage] = React.useState("schedule");
   const { theme, toggle } = useTheme();
@@ -430,15 +460,6 @@ export default function App() {
             <NavBtn id="schedule" label="Schedule" />
             <NavBtn id="staff" label="Staff" />
             <NavBtn id="syllabus" label="Syllabus" />
-            {/* Theme toggle */}
-            <button
-              onClick={toggle}
-              className="ml-2 rounded-xl border border-black/10 bg-black/5 px-3 py-2 text-sm text-slate-700 hover:bg-black/10
-                         dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
-              title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-            >
-              {theme === "dark" ? "Light" : "Dark"}
-            </button>
           </nav>
         </div>
       </header>
@@ -482,6 +503,9 @@ export default function App() {
           </div>
         </div>
       </footer>
+
+      {/* Floating theme toggle (iPhone-safe) */}
+      <ThemeFAB theme={theme} onToggle={toggle} />
     </div>
   );
 }
