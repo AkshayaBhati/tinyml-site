@@ -3,9 +3,21 @@ import React from "react";
 /* =========================
    0) CONFIG
    ========================= */
-const API_KEY  = "AIzaSyCjjW3RjE6y026TTk3qLXDEs-i6RWor30g";           // your API key
-const SHEET_ID = "16Q3GRHir6zs3Vc1M30F_2cpTzp48muh2bCTlmlHdnco";      // sheet ID
+const API_KEY  = "AIzaSyCjjW3RjE6y026TTk3qLXDEs-i6RWor30g"; // your API key
+const SHEET_ID = "16Q3GRHir6zs3Vc1M30F_2cpTzp48muh2bCTlmlHdnco"; // schedule sheet
 const TAB_NAME = "Sheet1";
+
+// Published Google Doc URL for Syllabus (NEW)
+const DOC_PUB_URL =
+  "https://docs.google.com/document/d/e/2PACX-1vRF_9-plJVYDaTzHVOqImhfxmHMtECvWzy1h0JYrNAnI5_ur3mLk5bzV4AiDonOY5Yiffa1rkkC9YMF/pub";
+
+// 5-min cache buster so users see recent edits as soon as Google refreshes its snapshot
+const DOC_SRC = `${DOC_PUB_URL}?v=${Math.floor(Date.now() / (5 * 60 * 1000))}`;
+
+// =========================
+//  Docs (Read the Docs or GH Pages)
+// =========================
+const DOCS_URL = "https://tinyml-readthedocs.readthedocs.io/en/latest/index.html";
 
 /* =========================
    THEME HOOK
@@ -24,13 +36,13 @@ function useTheme() {
     else root.classList.remove("dark");
   }, [theme]);
 
-  return { theme, toggle: () => setTheme(t => (t === "dark" ? "light" : "dark")) };
+  return { theme, toggle: () => setTheme((t) => (t === "dark" ? "light" : "dark")) };
 }
 
 /* =========================
-   1) FETCH + CACHE (TTL=0 => always fresh on page load)
+   1) FETCH + CACHE (Schedule)
    ========================= */
-const CACHE_TTL_MS = 0; // fetch fresh each load
+const CACHE_TTL_MS = 0; // always fetch fresh on page load
 
 function cacheKey(sheetId, tabName, range = "A:Z") {
   return `tinyml:sheets:${sheetId}:${tabName}:${range}`;
@@ -75,9 +87,9 @@ async function fetchFromSheetsAPI({ apiKey, sheetId, tabName, range = "A:Z" }) {
         let html = "";
         for (let idx = 0; idx < v.runs.length; idx++) {
           const start = v.runs[idx].startIndex ?? 0;
-          const end   = v.runs[idx + 1]?.startIndex ?? full.length;
+          const end = v.runs[idx + 1]?.startIndex ?? full.length;
           const slice = full.slice(start, end);
-          const href  = v.runs[idx].format?.link?.uri;
+          const href = v.runs[idx].format?.link?.uri;
           html += href
             ? `<a href="${href}" target="_blank" rel="noreferrer" class="underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white">${slice}</a>`
             : slice;
@@ -132,7 +144,10 @@ function useSheet({ apiKey, sheetId, tabName }) {
     (async () => {
       try {
         const { headers, rows, fromCache, lastUpdated } = await cachedSheet({
-          apiKey, sheetId, tabName, force: false,
+          apiKey,
+          sheetId,
+          tabName,
+          force: false,
         });
         if (on) setState({ headers, rows, loading: false, error: "", lastUpdated, fromCache });
       } catch (e) {
@@ -148,7 +163,7 @@ function useSheet({ apiKey, sheetId, tabName }) {
 /* =========================
    2) RENDER HELPERS
    ========================= */
-const H   = ({ html }) => <span dangerouslySetInnerHTML={{ __html: html || "" }} />;
+const H = ({ html }) => <span dangerouslySetInnerHTML={{ __html: html || "" }} />;
 const get = (row, key) => row?.[key] || "";
 
 function stripHtml(html = "") {
@@ -220,10 +235,9 @@ function CollapsibleLinks({ title, html }) {
 
 /** Two-pass module fill with "Special Topics" cutoff */
 function withDisplayModule(rows) {
-  // Pass 1: compute part per row & first block title per part
-  const partAtRow   = new Array(rows.length).fill("");
+  const partAtRow = new Array(rows.length).fill("");
   const blockByPart = {};
-  let currentPart   = "";
+  let currentPart = "";
 
   for (let i = 0; i < rows.length; i++) {
     const rawModule = stripHtml(get(rows[i], "Module"));
@@ -233,24 +247,21 @@ function withDisplayModule(rows) {
       } else {
         const block = stripWeeks(rawModule);
         if (currentPart && block && !blockByPart[currentPart]) {
-          blockByPart[currentPart] = block; // first seen wins
+          blockByPart[currentPart] = block;
         }
       }
     }
     partAtRow[i] = currentPart;
   }
 
-  // Pass 2: attach combined label; stop after "Special Topics"
   let afterSpecialTopics = false;
 
   return rows.map((r, i) => {
     const lectureText = stripHtml(get(r, "Lecture"));
-    if (/^\s*Special\s+Topics\b/i.test(lectureText)) {
-      afterSpecialTopics = true;
-    }
+    if (/^\s*Special\s+Topics\b/i.test(lectureText)) afterSpecialTopics = true;
 
-    const part  = afterSpecialTopics ? "" : partAtRow[i];
-    const block = afterSpecialTopics ? "" : (part ? (blockByPart[part] || "") : "");
+    const part = afterSpecialTopics ? "" : partAtRow[i];
+    const block = afterSpecialTopics ? "" : part ? blockByPart[part] || "" : "";
     const combined = part || block ? [part, block].filter(Boolean).join(": ") : "";
 
     return { ...r, _moduleCombined: combined };
@@ -261,7 +272,11 @@ function withDisplayModule(rows) {
    3) SCHEDULE CARDS
    ========================= */
 function ScheduleCards({ apiKey, sheetId, tabName }) {
-  const { rows, loading, error, lastUpdated, fromCache } = useSheet({ apiKey, sheetId, tabName });
+  const { rows, loading, error, lastUpdated, fromCache } = useSheet({
+    apiKey,
+    sheetId,
+    tabName,
+  });
   const displayRows = withDisplayModule(rows);
 
   return (
@@ -272,21 +287,25 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
           : "Loading…"}
       </div>
 
-      {loading && !displayRows.length && <div className="text-slate-600 dark:text-white/70">Loading schedule…</div>}
+      {loading && !displayRows.length && (
+        <div className="text-slate-600 dark:text-white/70">Loading schedule…</div>
+      )}
       {error && <div className="text-rose-600 dark:text-rose-300">Error: {error}</div>}
-      {!loading && !displayRows.length && !error && <div className="text-slate-600 dark:text-white/70">No items yet.</div>}
+      {!loading && !displayRows.length && !error && (
+        <div className="text-slate-600 dark:text-white/70">No items yet.</div>
+      )}
 
       {!error && displayRows.length > 0 && (
         <div className="grid gap-6">
           {displayRows.map((r, i) => {
-            const date      = stripHtml(get(r, "Date"));
-            const lecture   = get(r, "Lecture");
-            const topics    = get(r, "Topics");
-            const slides    = get(r, "Slides & Videos");
-            const tutorial  = get(r, "Tutorial");
-            const readings  = get(r, "Readings");
-            const assignment= get(r, "Assignment");
-            const quizzes   = get(r, "Quizzes");
+            const date = stripHtml(get(r, "Date"));
+            const lecture = get(r, "Lecture");
+            const topics = get(r, "Topics");
+            const slides = get(r, "Slides & Videos");
+            const tutorial = get(r, "Tutorial");
+            const readings = get(r, "Readings");
+            const assignment = get(r, "Assignment");
+            const quizzes = get(r, "Quizzes");
             const moduleCombined = r._moduleCombined;
 
             if (!date && !lecture && !topics && !slides) return null;
@@ -294,10 +313,8 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
             return (
               <article
                 key={i}
-                className="rounded-2xl border border-black/10 bg-black/5 p-6 text-[15px] leading-6 shadow-sm shadow-black/5
-                           dark:border-white/10 dark:bg-white/[0.06]"
+                className="rounded-2xl border border-black/10 bg-black/5 p-6 text-[15px] leading-6 shadow-sm shadow-black/5 dark:border-white/10 dark:bg-white/[0.06]"
               >
-                {/* header: lecture left, date right, full module heading next to lecture */}
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
                   <div className="flex items-center gap-3">
                     {lecture && (
@@ -306,8 +323,7 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
                       </div>
                     )}
                     {moduleCombined && (
-                      <span className="rounded-full border border-black/10 bg-black/5 px-2.5 py-0.5 text-[11px] text-slate-700
-                                       dark:border-white/15 dark:bg-white/10 dark:text-white/75">
+                      <span className="rounded-full border border-black/10 bg-black/5 px-2.5 py-0.5 text-[11px] text-slate-700 dark:border-white/15 dark:bg-white/10 dark:text-white/75">
                         {moduleCombined}
                       </span>
                     )}
@@ -316,26 +332,21 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
                 </div>
 
                 <div className="mt-5 grid gap-6 lg:grid-cols-2">
-                  {/* left: topics */}
                   <div>
                     {topics && (
                       <div>
                         <div className="text-[11px] uppercase tracking-wide text-slate-600 dark:text-white/55">Topics</div>
-                        <div className="mt-2 text-slate-900 dark:text-white/90">
-                          <H html={topics} />
-                        </div>
+                        <div className="mt-2 text-slate-900 dark:text-white/90"><H html={topics} /></div>
                       </div>
                     )}
                   </div>
 
-                  {/* right: resources — dropdowns for the three sections */}
                   <div className="grid gap-4">
                     <CollapsibleLinks title="Slides & Videos" html={slides} />
                     <CollapsibleLinks title="Tutorial" html={tutorial} />
                     <CollapsibleLinks title="Readings" html={readings} />
                     {(assignment || quizzes) && (
                       <div className="grid gap-4 sm:grid-cols-2">
-                        {/* keep these as simple lists (not dropdowns) */}
                         {assignment && (
                           <div>
                             <div className="text-[11px] uppercase tracking-wide text-slate-600 dark:text-white/55">Assignment</div>
@@ -388,14 +399,215 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
 }
 
 /* =========================
-   4) PAGE CHROME
+   4) SYLLABUS (Google Doc)
+   ========================= */
+
+/** Fetch published Google Doc HTML */
+function usePublishedDoc(pubUrl) {
+  const [html, setHtml] = React.useState("");
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
+
+  React.useEffect(() => {
+    if (!pubUrl) return;
+    setLoading(true);
+    fetch(pubUrl, { credentials: "omit", cache: "no-store", mode: "cors" })
+      .then((r) => {
+        if (!r.ok) throw new Error(`Fetch ${r.status}`);
+        return r.text();
+      })
+      .then((raw) => {
+        const cleaned = sanitizeAndDecorateGoogleDocHTML(raw);
+        setHtml(cleaned);
+        setLoading(false);
+      })
+      .catch((e) => {
+        setError(String(e));
+        setLoading(false);
+      });
+  }, [pubUrl]);
+
+  return { html, loading, error };
+}
+
+/** Sanitizer + Tailwind restyler for Google Doc HTML */
+function sanitizeAndDecorateGoogleDocHTML(rawHtml) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(rawHtml, "text/html");
+  const body = doc.body;
+
+  // Remove script/style
+  body.querySelectorAll("script, style").forEach((n) => n.remove());
+
+  // BEFORE stripping styles, convert inline font-weight to <strong>
+  body.querySelectorAll("[style*='font-weight']").forEach((el) => {
+    const style = (el.getAttribute("style") || "").toLowerCase();
+    if (!/font-weight\s*:\s*(bold|[6-9]00)/.test(style)) return;
+    if (el.closest("strong, b")) return; // already bold
+    const strong = doc.createElement("strong");
+    while (el.firstChild) strong.appendChild(el.firstChild);
+    el.appendChild(strong);
+  });
+
+  // Allowlist tags & attributes
+  const ALLOW = new Set([
+    "p","br","strong","b","em","u","s","span","h1","h2","h3","h4","h5","h6",
+    "ul","ol","li","a","img","blockquote","hr","table","thead","tbody",
+    "tr","th","td","pre","code","figure","figcaption","div",
+  ]);
+  const ALLOW_ATTR = new Set(["href", "src", "alt", "title", "colspan", "rowspan"]);
+
+  const walker = doc.createTreeWalker(body, NodeFilter.SHOW_ELEMENT);
+  const toRemove = [];
+  while (walker.nextNode()) {
+    const el = walker.currentNode;
+    if (!ALLOW.has(el.tagName.toLowerCase())) { toRemove.push(el); continue; }
+    [...el.attributes].forEach((attr) => {
+      if (!ALLOW_ATTR.has(attr.name.toLowerCase())) el.removeAttribute(attr.name);
+    });
+  }
+  toRemove.forEach((n) => n.replaceWith(...n.childNodes));
+
+  // Promote numbered-looking paragraphs to <h3>
+  body.querySelectorAll("p").forEach((p) => {
+    const text = (p.textContent || "").trim();
+    const looksLikeNumberedHead =
+      /^([A-Za-z]\.)?\d+(\.\d+)*\.\s+/.test(text) ||
+      /^A\.\d+(\.\d+)*\s+/.test(text);
+    if (!looksLikeNumberedHead) return;
+    const h = doc.createElement("h3");
+    h.innerHTML = p.innerHTML;
+    p.replaceWith(h);
+  });
+
+  // Theme-friendly classes
+  body.querySelectorAll("h1").forEach((h) => (h.className = "text-3xl font-semibold mt-6 mb-3 text-slate-900 dark:text-white"));
+  body.querySelectorAll("h2").forEach((h) => (h.className = "text-2xl font-semibold mt-6 mb-3 text-slate-900 dark:text-white"));
+  body.querySelectorAll("h3").forEach((h) => (h.className = "text-xl font-bold mt-5 mb-2.5 text-slate-900 dark:text-white"));
+  body.querySelectorAll("h4,h5,h6").forEach((h) => (h.className = "text-lg font-semibold mt-4 mb-2 text-slate-900 dark:text-white"));
+
+  body.querySelectorAll("p,li,figcaption").forEach((p) => {
+    p.classList.add("text-[15px]", "leading-7", "text-slate-800", "dark:text-white/90");
+    if (p.tagName.toLowerCase() === "p") p.classList.add("my-3");
+  });
+
+  body.querySelectorAll("ul").forEach((ul) => (ul.className = "list-disc pl-6 my-3 space-y-1"));
+  body.querySelectorAll("ol").forEach((ol) => (ol.className = "list-decimal pl-6 my-3 space-y-1"));
+
+  body.querySelectorAll("a[href]").forEach((a) => {
+    a.target = "_blank";
+    a.rel = "noreferrer";
+    a.className =
+      "underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white";
+  });
+
+  body.querySelectorAll("img[src]").forEach((img) => {
+    img.className = "max-w-full h-auto rounded-xl border border-black/10 dark:border-white/10 my-3";
+  });
+
+  body.querySelectorAll("blockquote").forEach(
+    (bq) =>
+      (bq.className =
+        "border-l-4 pl-4 my-4 text-slate-700 dark:text-white/80 border-slate-300 dark:border-white/20")
+  );
+
+  body.querySelectorAll("code").forEach((c) => {
+    c.classList.add("px-1.5", "py-0.5", "rounded", "bg-black/5", "dark:bg-white/10");
+  });
+  body.querySelectorAll("pre").forEach((pre) => {
+    pre.className = "my-4 p-3 rounded-xl overflow-auto bg-black/5 dark:bg-white/10";
+  });
+
+  // Tables with scroll wrapper
+  body.querySelectorAll("table").forEach((table) => {
+    table.className = "w-full text-sm border-collapse";
+    table.querySelectorAll("th").forEach((th) =>
+      th.classList.add(
+        "text-left","font-semibold","px-3","py-2","bg-black/5","dark:bg-white/10","text-slate-800","dark:text-white"
+      )
+    );
+    table.querySelectorAll("td").forEach((td) =>
+      td.classList.add(
+        "px-3","py-2","align-top","text-slate-800","dark:text-white/90","border-t","border-black/10","dark:border-white/10"
+      )
+    );
+    const wrap = doc.createElement("div");
+    wrap.className = "overflow-x-auto rounded-xl border border-black/10 dark:border-white/10 my-4";
+    table.parentNode?.insertBefore(wrap, table);
+    wrap.appendChild(table);
+  });
+
+  const container = doc.createElement("div");
+  container.append(...body.childNodes);
+  return container.innerHTML;
+}
+
+/** Syllabus page */
+function SyllabusPage() {
+  const { html, loading, error } = usePublishedDoc(DOC_SRC);
+
+  if (loading) return <div className="text-slate-600 dark:text-white/70">Loading syllabus…</div>;
+
+  // Fallback to iframe when CORS blocks fetch (still uses cache-buster)
+  if (error) {
+    return (
+      <div className="mx-auto w-full max-w-4xl">
+        <iframe
+          src={`${DOC_PUB_URL}?embedded=true&v=${Math.floor(Date.now() / (5 * 60 * 1000))}`}
+          style={{ width: "100%", height: "80vh", border: 0 }}
+          title="Syllabus"
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  return <div className="mx-auto w-full max-w-4xl" dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+/* =========================
+   4.5) DOCS PAGE (Read the Docs / GH Pages)
+   ========================= */
+function DocsPage() {
+  // Cache-buster so users see the latest build snapshot when your host/CDN allows it
+  const src = `${DOCS_URL}?v=${Math.floor(Date.now() / (5 * 60 * 1000))}`;
+
+  return (
+    <div className="mx-auto w-full max-w-6xl">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-sm text-slate-600 dark:text-white/60">
+          Embedded docs from <code>{new URL(DOCS_URL).hostname}</code>
+        </div>
+        <a
+          href={DOCS_URL}
+          target="_blank"
+          rel="noreferrer"
+          className="text-sm underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white"
+        >
+          Open in new tab ↗
+        </a>
+      </div>
+
+      <div className="rounded-xl border border-black/10 dark:border-white/10 overflow-hidden">
+        <iframe
+          title="Course Docs"
+          src={src}
+          loading="lazy"
+          style={{ width: "100%", height: "80vh", border: 0 }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/* =========================
+   5) PAGE CHROME + THEME FAB
    ========================= */
 function Section({ title, eyebrow, children }) {
   return (
     <section className="mx-auto w-full max-w-6xl px-4 py-12">
       <div className="mb-6">
-        <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-black/5 px-3 py-1 text-xs text-slate-700
-                        dark:border-white/15 dark:bg-white/5 dark:text-white/80">
+        <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-black/5 px-3 py-1 text-xs text-slate-700 dark:border-white/15 dark:bg-white/5 dark:text-white/80">
           {eyebrow}
         </div>
         <h2 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">{title}</h2>
@@ -405,9 +617,6 @@ function Section({ title, eyebrow, children }) {
   );
 }
 
-/* =========================
-   Floating Theme Toggle (iPhone-safe)
-   ========================= */
 function ThemeFAB({ theme, onToggle }) {
   const label = theme === "dark" ? "Light" : "Dark";
   return (
@@ -430,6 +639,9 @@ function ThemeFAB({ theme, onToggle }) {
   );
 }
 
+/* =========================
+   6) MAIN APP
+   ========================= */
 export default function App() {
   const [page, setPage] = React.useState("schedule");
   const { theme, toggle } = useTheme();
@@ -460,6 +672,7 @@ export default function App() {
             <NavBtn id="schedule" label="Schedule" />
             <NavBtn id="staff" label="Staff" />
             <NavBtn id="syllabus" label="Syllabus" />
+            <NavBtn id="docs" label="Docs" />
           </nav>
         </div>
       </header>
@@ -467,7 +680,9 @@ export default function App() {
       {page === "home" && (
         <main className="grid place-items-center px-4 py-24">
           <div className="text-center max-w-2xl">
-            <h1 className="text-5xl font-bold text-emerald-600 dark:text-emerald-400">Tiny Machine Learning</h1>
+            <h1 className="text-5xl font-bold text-emerald-600 dark:text-emerald-400">
+              Tiny Machine Learning
+            </h1>
             <p className="mt-4 text-slate-700 dark:text-white/70">
               Build embedded ML systems on microcontrollers—from sensing to models to deployment.
             </p>
@@ -489,7 +704,13 @@ export default function App() {
 
       {page === "syllabus" && (
         <Section eyebrow="Policies & Plan" title="Syllabus">
-          <div className="text-slate-700 dark:text-white/70">Add syllabus info here.</div>
+          <SyllabusPage />
+        </Section>
+      )}
+
+      {page === "docs" && (
+        <Section eyebrow="Reference" title="Documentation">
+          <DocsPage />
         </Section>
       )}
 
