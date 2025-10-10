@@ -3,21 +3,21 @@ import React from "react";
 /* =========================
    0) CONFIG
    ========================= */
-const API_KEY  = "AIzaSyCjjW3RjE6y026TTk3qLXDEs-i6RWor30g"; // your API key
+const API_KEY  = "AIzaSyCjjW3RjE6y026TTk3qLXDEs-i6RWor30g"; // Sheets API key
 const SHEET_ID = "16Q3GRHir6zs3Vc1M30F_2cpTzp48muh2bCTlmlHdnco"; // schedule sheet
 const TAB_NAME = "Sheet1";
 
-// Published Google Doc URL for Syllabus (NEW)
+// Published Google Doc URL for Syllabus
 const DOC_PUB_URL =
   "https://docs.google.com/document/d/e/2PACX-1vRF_9-plJVYDaTzHVOqImhfxmHMtECvWzy1h0JYrNAnI5_ur3mLk5bzV4AiDonOY5Yiffa1rkkC9YMF/pub";
 
-// 5-min cache buster so users see recent edits as soon as Google refreshes its snapshot
-const DOC_SRC = `${DOC_PUB_URL}?v=${Math.floor(Date.now() / (5 * 60 * 1000))}`;
+// Read the Docs page for Lecture 1
+const LEC1_URL =
+  "https://tinyml-readthedocs.readthedocs.io/en/latest/module1/Lecture1.html";
 
-// =========================
-//  Docs (Read the Docs or GH Pages)
-// =========================
-const DOCS_URL = "https://tinyml-readthedocs.readthedocs.io/en/latest/index.html";
+// 5-min cache busters
+const DOC_SRC  = `${DOC_PUB_URL}?v=${Math.floor(Date.now() / (5 * 60 * 1000))}`;
+const LEC1_SRC = `${LEC1_URL}?v=${Math.floor(Date.now() / (5 * 60 * 1000))}`;
 
 /* =========================
    THEME HOOK
@@ -87,9 +87,9 @@ async function fetchFromSheetsAPI({ apiKey, sheetId, tabName, range = "A:Z" }) {
         let html = "";
         for (let idx = 0; idx < v.runs.length; idx++) {
           const start = v.runs[idx].startIndex ?? 0;
-          const end = v.runs[idx + 1]?.startIndex ?? full.length;
+          const end   = v.runs[idx + 1]?.startIndex ?? full.length;
           const slice = full.slice(start, end);
-          const href = v.runs[idx].format?.link?.uri;
+          const href  = v.runs[idx].format?.link?.uri;
           html += href
             ? `<a href="${href}" target="_blank" rel="noreferrer" class="underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white">${slice}</a>`
             : slice;
@@ -144,10 +144,7 @@ function useSheet({ apiKey, sheetId, tabName }) {
     (async () => {
       try {
         const { headers, rows, fromCache, lastUpdated } = await cachedSheet({
-          apiKey,
-          sheetId,
-          tabName,
-          force: false,
+          apiKey, sheetId, tabName, force: false,
         });
         if (on) setState({ headers, rows, loading: false, error: "", lastUpdated, fromCache });
       } catch (e) {
@@ -163,7 +160,7 @@ function useSheet({ apiKey, sheetId, tabName }) {
 /* =========================
    2) RENDER HELPERS
    ========================= */
-const H = ({ html }) => <span dangerouslySetInnerHTML={{ __html: html || "" }} />;
+const H   = ({ html }) => <span dangerouslySetInnerHTML={{ __html: html || "" }} />;
 const get = (row, key) => row?.[key] || "";
 
 function stripHtml(html = "") {
@@ -172,12 +169,10 @@ function stripHtml(html = "") {
   return div.textContent || div.innerText || "";
 }
 
-// remove any duration like "(~3 weeks)"
 function stripWeeks(text = "") {
   return text.replace(/\s*\(\s*~?[^)]*\bweeks?\b[^)]*\)\s*/gi, "").trim();
 }
 
-// parse anchors from html, fallback to comma/newline split
 function htmlToLinkItems(html) {
   if (!html) return [];
   try {
@@ -235,9 +230,9 @@ function CollapsibleLinks({ title, html }) {
 
 /** Two-pass module fill with "Special Topics" cutoff */
 function withDisplayModule(rows) {
-  const partAtRow = new Array(rows.length).fill("");
+  const partAtRow   = new Array(rows.length).fill("");
   const blockByPart = {};
-  let currentPart = "";
+  let currentPart   = "";
 
   for (let i = 0; i < rows.length; i++) {
     const rawModule = stripHtml(get(rows[i], "Module"));
@@ -260,8 +255,8 @@ function withDisplayModule(rows) {
     const lectureText = stripHtml(get(r, "Lecture"));
     if (/^\s*Special\s+Topics\b/i.test(lectureText)) afterSpecialTopics = true;
 
-    const part = afterSpecialTopics ? "" : partAtRow[i];
-    const block = afterSpecialTopics ? "" : part ? blockByPart[part] || "" : "";
+    const part  = afterSpecialTopics ? "" : partAtRow[i];
+    const block = afterSpecialTopics ? "" : (part ? (blockByPart[part] || "") : "");
     const combined = part || block ? [part, block].filter(Boolean).join(": ") : "";
 
     return { ...r, _moduleCombined: combined };
@@ -273,9 +268,7 @@ function withDisplayModule(rows) {
    ========================= */
 function ScheduleCards({ apiKey, sheetId, tabName }) {
   const { rows, loading, error, lastUpdated, fromCache } = useSheet({
-    apiKey,
-    sheetId,
-    tabName,
+    apiKey, sheetId, tabName,
   });
   const displayRows = withDisplayModule(rows);
 
@@ -298,14 +291,14 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
       {!error && displayRows.length > 0 && (
         <div className="grid gap-6">
           {displayRows.map((r, i) => {
-            const date = stripHtml(get(r, "Date"));
-            const lecture = get(r, "Lecture");
-            const topics = get(r, "Topics");
-            const slides = get(r, "Slides & Videos");
-            const tutorial = get(r, "Tutorial");
-            const readings = get(r, "Readings");
+            const date       = stripHtml(get(r, "Date"));
+            const lecture    = get(r, "Lecture");
+            const topics     = get(r, "Topics");
+            const slides     = get(r, "Slides & Videos");
+            const tutorial   = get(r, "Tutorial");
+            const readings   = get(r, "Readings");
             const assignment = get(r, "Assignment");
-            const quizzes = get(r, "Quizzes");
+            const quizzes    = get(r, "Quizzes");
             const moduleCombined = r._moduleCombined;
 
             if (!date && !lecture && !topics && !slides) return null;
@@ -401,8 +394,6 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
 /* =========================
    4) SYLLABUS (Google Doc)
    ========================= */
-
-/** Fetch published Google Doc HTML */
 function usePublishedDoc(pubUrl) {
   const [html, setHtml] = React.useState("");
   const [loading, setLoading] = React.useState(true);
@@ -430,32 +421,28 @@ function usePublishedDoc(pubUrl) {
   return { html, loading, error };
 }
 
-/** Sanitizer + Tailwind restyler for Google Doc HTML */
 function sanitizeAndDecorateGoogleDocHTML(rawHtml) {
   const parser = new DOMParser();
   const doc = parser.parseFromString(rawHtml, "text/html");
   const body = doc.body;
 
-  // Remove script/style
   body.querySelectorAll("script, style").forEach((n) => n.remove());
 
-  // BEFORE stripping styles, convert inline font-weight to <strong>
+  // convert inline bold to <strong>
   body.querySelectorAll("[style*='font-weight']").forEach((el) => {
     const style = (el.getAttribute("style") || "").toLowerCase();
     if (!/font-weight\s*:\s*(bold|[6-9]00)/.test(style)) return;
-    if (el.closest("strong, b")) return; // already bold
+    if (el.closest("strong, b")) return;
     const strong = doc.createElement("strong");
     while (el.firstChild) strong.appendChild(el.firstChild);
     el.appendChild(strong);
   });
 
-  // Allowlist tags & attributes
   const ALLOW = new Set([
     "p","br","strong","b","em","u","s","span","h1","h2","h3","h4","h5","h6",
-    "ul","ol","li","a","img","blockquote","hr","table","thead","tbody",
-    "tr","th","td","pre","code","figure","figcaption","div",
+    "ul","ol","li","a","img","blockquote","hr","table","thead","tbody","tr","th","td","pre","code","figure","figcaption","div",
   ]);
-  const ALLOW_ATTR = new Set(["href", "src", "alt", "title", "colspan", "rowspan"]);
+  const ALLOW_ATTR = new Set(["href","src","alt","title","colspan","rowspan"]);
 
   const walker = doc.createTreeWalker(body, NodeFilter.SHOW_ELEMENT);
   const toRemove = [];
@@ -468,26 +455,25 @@ function sanitizeAndDecorateGoogleDocHTML(rawHtml) {
   }
   toRemove.forEach((n) => n.replaceWith(...n.childNodes));
 
-  // Promote numbered-looking paragraphs to <h3>
+  // promote numbered lines to <h3>
   body.querySelectorAll("p").forEach((p) => {
     const text = (p.textContent || "").trim();
-    const looksLikeNumberedHead =
-      /^([A-Za-z]\.)?\d+(\.\d+)*\.\s+/.test(text) ||
-      /^A\.\d+(\.\d+)*\s+/.test(text);
-    if (!looksLikeNumberedHead) return;
+    const looksLikeHead =
+      /^([A-Za-z]\.)?\d+(\.\d+)*\.\s+/.test(text) || /^A\.\d+(\.\d+)*\s+/.test(text);
+    if (!looksLikeHead) return;
     const h = doc.createElement("h3");
     h.innerHTML = p.innerHTML;
     p.replaceWith(h);
   });
 
-  // Theme-friendly classes
+  // theme classes
   body.querySelectorAll("h1").forEach((h) => (h.className = "text-3xl font-semibold mt-6 mb-3 text-slate-900 dark:text-white"));
   body.querySelectorAll("h2").forEach((h) => (h.className = "text-2xl font-semibold mt-6 mb-3 text-slate-900 dark:text-white"));
   body.querySelectorAll("h3").forEach((h) => (h.className = "text-xl font-bold mt-5 mb-2.5 text-slate-900 dark:text-white"));
   body.querySelectorAll("h4,h5,h6").forEach((h) => (h.className = "text-lg font-semibold mt-4 mb-2 text-slate-900 dark:text-white"));
 
   body.querySelectorAll("p,li,figcaption").forEach((p) => {
-    p.classList.add("text-[15px]", "leading-7", "text-slate-800", "dark:text-white/90");
+    p.classList.add("text-[15px]","leading-7","text-slate-800","dark:text-white/90");
     if (p.tagName.toLowerCase() === "p") p.classList.add("my-3");
   });
 
@@ -497,39 +483,31 @@ function sanitizeAndDecorateGoogleDocHTML(rawHtml) {
   body.querySelectorAll("a[href]").forEach((a) => {
     a.target = "_blank";
     a.rel = "noreferrer";
-    a.className =
-      "underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white";
+    a.className = "underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white";
   });
 
   body.querySelectorAll("img[src]").forEach((img) => {
     img.className = "max-w-full h-auto rounded-xl border border-black/10 dark:border-white/10 my-3";
   });
 
-  body.querySelectorAll("blockquote").forEach(
-    (bq) =>
-      (bq.className =
-        "border-l-4 pl-4 my-4 text-slate-700 dark:text-white/80 border-slate-300 dark:border-white/20")
-  );
+  body.querySelectorAll("blockquote").forEach((bq) => {
+    bq.className = "border-l-4 pl-4 my-4 text-slate-700 dark:text-white/80 border-slate-300 dark:border-white/20";
+  });
 
   body.querySelectorAll("code").forEach((c) => {
-    c.classList.add("px-1.5", "py-0.5", "rounded", "bg-black/5", "dark:bg-white/10");
+    c.classList.add("px-1.5","py-0.5","rounded","bg-black/5","dark:bg-white/10");
   });
   body.querySelectorAll("pre").forEach((pre) => {
     pre.className = "my-4 p-3 rounded-xl overflow-auto bg-black/5 dark:bg-white/10";
   });
 
-  // Tables with scroll wrapper
   body.querySelectorAll("table").forEach((table) => {
     table.className = "w-full text-sm border-collapse";
     table.querySelectorAll("th").forEach((th) =>
-      th.classList.add(
-        "text-left","font-semibold","px-3","py-2","bg-black/5","dark:bg-white/10","text-slate-800","dark:text-white"
-      )
+      th.classList.add("text-left","font-semibold","px-3","py-2","bg-black/5","dark:bg-white/10","text-slate-800","dark:text-white")
     );
     table.querySelectorAll("td").forEach((td) =>
-      td.classList.add(
-        "px-3","py-2","align-top","text-slate-800","dark:text-white/90","border-t","border-black/10","dark:border-white/10"
-      )
+      td.classList.add("px-3","py-2","align-top","text-slate-800","dark:text-white/90","border-t","border-black/10","dark:border-white/10")
     );
     const wrap = doc.createElement("div");
     wrap.className = "overflow-x-auto rounded-xl border border-black/10 dark:border-white/10 my-4";
@@ -542,13 +520,9 @@ function sanitizeAndDecorateGoogleDocHTML(rawHtml) {
   return container.innerHTML;
 }
 
-/** Syllabus page */
 function SyllabusPage() {
   const { html, loading, error } = usePublishedDoc(DOC_SRC);
-
   if (loading) return <div className="text-slate-600 dark:text-white/70">Loading syllabus…</div>;
-
-  // Fallback to iframe when CORS blocks fetch (still uses cache-buster)
   if (error) {
     return (
       <div className="mx-auto w-full max-w-4xl">
@@ -556,52 +530,320 @@ function SyllabusPage() {
           src={`${DOC_PUB_URL}?embedded=true&v=${Math.floor(Date.now() / (5 * 60 * 1000))}`}
           style={{ width: "100%", height: "80vh", border: 0 }}
           title="Syllabus"
-          loading="lazy"
+        />
+      </div>
+    );
+  }
+  return <div className="mx-auto w-full max-w-4xl" dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+/* =========================
+   5) LECTURE 1 (Read the Docs)
+   ========================= */
+function useRtdPage(url) {
+  const [html, setHtml] = React.useState("");
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState("");
+
+  React.useEffect(() => {
+    if (!url) return;
+    setLoading(true);
+    fetch(url, { credentials: "omit", cache: "no-store", mode: "cors" })
+      .then((r) => {
+        if (!r.ok) throw new Error(`Fetch ${r.status}`);
+        return r.text();
+      })
+      .then((raw) => {
+        const cleaned = sanitizeRtdHTML(raw);
+        setHtml(cleaned);
+        setLoading(false);
+      })
+      .catch((e) => {
+        setError(String(e));
+        setLoading(false);
+      });
+  }, [url]);
+
+  return { html, loading, error };
+}
+
+
+function sanitizeRtdHTML(rawHtml) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(rawHtml, "text/html");
+
+  // Main content area
+  let main =
+    doc.querySelector('div[role="main"] .document') ||
+    doc.querySelector('div[role="main"]') ||
+    doc.querySelector(".document") ||
+    doc.body;
+
+  // Remove RTD chrome
+  main.querySelectorAll("nav, header, footer, .sphinxsidebar, .wy-nav-side, .toc, .related").forEach((n) => n.remove());
+  // Remove RTD “¶” permalink icons
+  main.querySelectorAll("a.headerlink, a[title^='Permalink']").forEach((n) => n.remove());
+  // Remove scripts/styles
+  main.querySelectorAll("script, style").forEach((n) => n.remove());
+
+  // Allowlist pass
+  const ALLOW = new Set([
+    "section","article","p","br","strong","b","em","u","s","span",
+    "h1","h2","h3","h4","h5","h6","ul","ol","li","a","img","blockquote",
+    "hr","table","thead","tbody","tr","th","td","pre","code","figure","figcaption","div","iframe"
+  ]);
+  const ALLOW_ATTR = new Set([
+    "href","src","alt","title","colspan","rowspan","allow","allowfullscreen","frameborder","loading","referrerpolicy","width","height"
+  ]);
+
+  const walker = doc.createTreeWalker(main, NodeFilter.SHOW_ELEMENT);
+  const toRemove = [];
+  while (walker.nextNode()) {
+    const el = walker.currentNode;
+    if (!ALLOW.has(el.tagName.toLowerCase())) { toRemove.push(el); continue; }
+    [...el.attributes].forEach((attr) => {
+      if (!ALLOW_ATTR.has(attr.name.toLowerCase())) el.removeAttribute(attr.name);
+    });
+  }
+  toRemove.forEach((n) => n.replaceWith(...n.childNodes));
+
+  // Headings
+  main.querySelectorAll("h1").forEach((h) => (h.className = "text-3xl font-semibold mt-6 mb-3 text-slate-900 dark:text-white"));
+  main.querySelectorAll("h2").forEach((h) => (h.className = "text-2xl font-semibold mt-6 mb-3 text-slate-900 dark:text-white"));
+  main.querySelectorAll("h3").forEach((h) => (h.className = "text-xl font-bold mt-5 mb-2.5 text-slate-900 dark:text-white"));
+  main.querySelectorAll("h4,h5,h6").forEach((h) => (h.className = "text-lg font-semibold mt-4 mb-2 text-slate-900 dark:text-white"));
+
+  // Body text
+  main.querySelectorAll("p,li,figcaption").forEach((p) => {
+    p.classList.add("text-[15px]","leading-7","text-slate-800","dark:text-white/90");
+    if (p.tagName.toLowerCase() === "p") p.classList.add("my-3");
+  });
+
+  // Lists
+  main.querySelectorAll("ul").forEach((ul) => (ul.className = "list-disc pl-6 my-3 space-y-1"));
+  main.querySelectorAll("ol").forEach((ol) => (ol.className = "list-decimal pl-6 my-3 space-y-1"));
+
+  // Links & media
+  main.querySelectorAll("a[href]").forEach((a) => {
+    a.target = "_blank";
+    a.rel = "noreferrer";
+    a.className = "underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white";
+  });
+  main.querySelectorAll("img[src]").forEach((img) => {
+    img.className = "max-w-full h-auto rounded-xl border border-black/10 dark:border-white/10 my-3";
+  });
+
+  // Responsive YouTube iframes
+  main.querySelectorAll("iframe[src*='youtube.com'], iframe[src*='youtu.be']").forEach((ifr) => {
+    const wrap = doc.createElement("div");
+    wrap.className = "relative w-full overflow-hidden rounded-xl border border-black/10 dark:border-white/10 my-4";
+    wrap.style.paddingTop = "56.25%"; // 16:9
+    ifr.className = "absolute left-0 top-0 h-full w-full";
+    ifr.setAttribute("allowfullscreen", "");
+    ifr.setAttribute("loading", "lazy");
+    ifr.removeAttribute("width");
+    ifr.removeAttribute("height");
+    ifr.parentNode?.insertBefore(wrap, ifr);
+    wrap.appendChild(ifr);
+  });
+
+  // --- Admonitions: Note & Tutorial → pretty callouts in your site style ---
+  main.querySelectorAll(".admonition").forEach((ad) => {
+    const type  = ad.className.match(/\b(note|tutorial)\b/i)?.[1]?.toLowerCase();
+    const title = ad.querySelector(".admonition-title")?.textContent?.trim()
+                || (type ? type[0].toUpperCase() + type.slice(1) : "Note");
+    ad.querySelector(".admonition-title")?.remove();
+
+    const box = doc.createElement("div");
+    // colors match site theme (sky for notes, emerald for tutorials)
+    box.className =
+      type === "tutorial"
+        ? "border-l-4 border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-500 text-slate-800 dark:text-white p-4 my-4 rounded-xl"
+        : "border-l-4 border-sky-400 bg-sky-50 dark:bg-sky-900/20 dark:border-sky-500 text-slate-800 dark:text-white p-4 my-4 rounded-xl";
+
+    const header = doc.createElement("div");
+    header.className = "font-semibold mb-1";
+    header.textContent = title;
+
+    const body = doc.createElement("div");
+    body.className = "text-[15px] leading-6";
+    body.innerHTML = ad.innerHTML;
+
+    box.append(header, body);
+    ad.replaceWith(box);
+  });
+
+  // Code blocks
+  main.querySelectorAll("code").forEach((c) => {
+    c.classList.add("px-1.5","py-0.5","rounded","bg-black/5","dark:bg-white/10");
+  });
+  main.querySelectorAll("pre").forEach((pre) => {
+    pre.className = "my-4 p-3 rounded-xl overflow-auto bg-black/5 dark:bg-white/10";
+  });
+
+  // Tables
+  main.querySelectorAll("table").forEach((table) => {
+    table.className = "w-full text-sm border-collapse";
+    table.querySelectorAll("th").forEach((th) =>
+      th.classList.add("text-left","font-semibold","px-3","py-2","bg-black/5","dark:bg-white/10","text-slate-800","dark:text-white")
+    );
+    table.querySelectorAll("td").forEach((td) =>
+      td.classList.add("px-3","py-2","align-top","text-slate-800","dark:text-white/90","border-t","border-black/10","dark:border-white/10")
+    );
+    const wrap = doc.createElement("div");
+    wrap.className = "overflow-x-auto rounded-xl border border-black/10 dark:border-white/10 my-4";
+    table.parentNode?.insertBefore(wrap, table);
+    wrap.appendChild(table);
+  });
+
+  const container = doc.createElement("div");
+  container.append(...main.childNodes);
+  return container.innerHTML;
+}
+
+/*
+function sanitizeRtdHTML(rawHtml) {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(rawHtml, "text/html");
+
+  // Find main article
+  let main =
+    doc.querySelector('div[role="main"] .document') ||
+    doc.querySelector('div[role="main"]') ||
+    doc.querySelector(".document") ||
+    doc.body;
+
+  // Remove sidebars, headers, footers, navs
+  main.querySelectorAll("nav, header, footer, .sphinxsidebar, .wy-nav-side, .toc, .related").forEach((n) => n.remove());
+
+  // Remove scripts/styles
+  main.querySelectorAll("script, style").forEach((n) => n.remove());
+
+  // ✅ Remove RTD/Sphinx permalink icons after headings
+  main.querySelectorAll("a.headerlink, a[title^='Permalink']").forEach((n) => n.remove());
+
+  // Allowlist + restyle
+  const ALLOW = new Set([
+    "section","article","p","br","strong","b","em","u","s","span",
+    "h1","h2","h3","h4","h5","h6","ul","ol","li","a","img","blockquote",
+    "hr","table","thead","tbody","tr","th","td","pre","code","figure","figcaption","div","iframe"
+  ]);
+  const ALLOW_ATTR = new Set(["href","src","alt","title","colspan","rowspan","allow","allowfullscreen","frameborder"]);
+
+  const walker = doc.createTreeWalker(main, NodeFilter.SHOW_ELEMENT);
+  const toRemove = [];
+  while (walker.nextNode()) {
+    const el = walker.currentNode;
+    if (!ALLOW.has(el.tagName.toLowerCase())) { toRemove.push(el); continue; }
+    [...el.attributes].forEach((attr) => {
+      if (!ALLOW_ATTR.has(attr.name.toLowerCase())) el.removeAttribute(attr.name);
+    });
+  }
+  toRemove.forEach((n) => n.replaceWith(...n.childNodes));
+
+  // Headings
+  main.querySelectorAll("h1").forEach((h) => (h.className = "text-3xl font-semibold mt-6 mb-3 text-slate-900 dark:text-white"));
+  main.querySelectorAll("h2").forEach((h) => (h.className = "text-2xl font-semibold mt-6 mb-3 text-slate-900 dark:text-white"));
+  main.querySelectorAll("h3").forEach((h) => (h.className = "text-xl font-bold mt-5 mb-2.5 text-slate-900 dark:text-white"));
+  main.querySelectorAll("h4,h5,h6").forEach((h) => (h.className = "text-lg font-semibold mt-4 mb-2 text-slate-900 dark:text-white"));
+
+  // Text
+  main.querySelectorAll("p,li,figcaption").forEach((p) => {
+    p.classList.add("text-[15px]","leading-7","text-slate-800","dark:text-white/90");
+    if (p.tagName.toLowerCase() === "p") p.classList.add("my-3");
+  });
+
+  // Lists
+  main.querySelectorAll("ul").forEach((ul) => (ul.className = "list-disc pl-6 my-3 space-y-1"));
+  main.querySelectorAll("ol").forEach((ol) => (ol.className = "list-decimal pl-6 my-3 space-y-1"));
+
+  // Links & media
+  main.querySelectorAll("a[href]").forEach((a) => {
+    a.target = "_blank";
+    a.rel = "noreferrer";
+    a.className = "underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white";
+  });
+  main.querySelectorAll("img[src]").forEach((img) => {
+    img.className = "max-w-full h-auto rounded-xl border border-black/10 dark:border-white/10 my-3";
+  });
+
+  // Make YouTube iframes responsive & themed border
+  main.querySelectorAll("iframe[src*='youtube.com'], iframe[src*='youtu.be']").forEach((ifr) => {
+    const wrapper = doc.createElement("div");
+    wrapper.className = "my-4 rounded-xl overflow-hidden border border-black/10 dark:border-white/10";
+    const ratio = doc.createElement("div");
+    ratio.className = "relative pt-[56.25%]";
+    const inner = doc.createElement("div");
+    inner.className = "absolute inset-0";
+    ifr.classList.add("w-full","h-full");
+    ifr.removeAttribute("width");
+    ifr.removeAttribute("height");
+    inner.appendChild(ifr.cloneNode(true));
+    ratio.appendChild(inner);
+    wrapper.appendChild(ratio);
+    ifr.replaceWith(wrapper);
+  });
+
+  // Code blocks
+  main.querySelectorAll("code").forEach((c) => {
+    c.classList.add("px-1.5","py-0.5","rounded","bg-black/5","dark:bg-white/10");
+  });
+  main.querySelectorAll("pre").forEach((pre) => {
+    pre.className = "my-4 p-3 rounded-xl overflow-auto bg-black/5 dark:bg-white/10";
+  });
+
+  // Tables
+  main.querySelectorAll("table").forEach((table) => {
+    table.className = "w-full text-sm border-collapse";
+    table.querySelectorAll("th").forEach((th) =>
+      th.classList.add("text-left","font-semibold","px-3","py-2","bg-black/5","dark:bg-white/10","text-slate-800","dark:text-white")
+    );
+    table.querySelectorAll("td").forEach((td) =>
+      td.classList.add("px-3","py-2","align-top","text-slate-800","dark:text-white/90","border-t","border-black/10","dark:border-white/10")
+    );
+    const wrap = doc.createElement("div");
+    wrap.className = "overflow-x-auto rounded-xl border border-black/10 dark:border-white/10 my-4";
+    table.parentNode?.insertBefore(wrap, table);
+    wrap.appendChild(table);
+  });
+
+  const container = doc.createElement("div");
+  container.append(...main.childNodes);
+  return container.innerHTML;
+}
+*/
+
+function Lecture1Page() {
+  const { html, loading, error } = useRtdPage(LEC1_SRC);
+
+  if (loading) return <div className="text-slate-600 dark:text-white/70">Loading lecture…</div>;
+
+  if (error || !html) {
+    // fallback to full page in an iframe if CORS blocks
+    return (
+      <div className="rounded-xl overflow-hidden border border-black/10 dark:border-white/10">
+        <iframe
+          src={LEC1_URL}
+          title="Lecture 1"
+          className="w-full"
+          style={{ height: "calc(100vh - 180px)", border: 0 }}
         />
       </div>
     );
   }
 
-  return <div className="mx-auto w-full max-w-4xl" dangerouslySetInnerHTML={{ __html: html }} />;
-}
-
-/* =========================
-   4.5) DOCS PAGE (Read the Docs / GH Pages)
-   ========================= */
-function DocsPage() {
-  // Cache-buster so users see the latest build snapshot when your host/CDN allows it
-  const src = `${DOCS_URL}?v=${Math.floor(Date.now() / (5 * 60 * 1000))}`;
-
   return (
-    <div className="mx-auto w-full max-w-6xl">
-      <div className="mb-3 flex items-center justify-between">
-        <div className="text-sm text-slate-600 dark:text-white/60">
-          Embedded docs from <code>{new URL(DOCS_URL).hostname}</code>
-        </div>
-        <a
-          href={DOCS_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="text-sm underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white"
-        >
-          Open in new tab ↗
-        </a>
-      </div>
-
-      <div className="rounded-xl border border-black/10 dark:border-white/10 overflow-hidden">
-        <iframe
-          title="Course Docs"
-          src={src}
-          loading="lazy"
-          style={{ width: "100%", height: "80vh", border: 0 }}
-        />
-      </div>
+    <div className="mx-auto w-full max-w-4xl">
+      <article
+        className="prose prose-slate max-w-none dark:prose-invert"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
     </div>
   );
 }
 
 /* =========================
-   5) PAGE CHROME + THEME FAB
+   6) PAGE CHROME + THEME FAB + LECTURES MENU
    ========================= */
 function Section({ title, eyebrow, children }) {
   return (
@@ -639,8 +881,57 @@ function ThemeFAB({ theme, onToggle }) {
   );
 }
 
+// Small dropdown for Lectures
+function LecturesMenu({ onSelect }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+
+  React.useEffect(() => {
+    function onDoc(e) {
+      if (!ref.current || ref.current.contains(e.target)) return;
+      setOpen(false);
+    }
+    document.addEventListener("click", onDoc);
+    return () => document.removeEventListener("click", onDoc);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-xl px-3 py-2 text-sm transition border
+                   border-black/10 bg-black/5 text-slate-700 hover:text-slate-900
+                   dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:text-white"
+        aria-haspopup="menu"
+        aria-expanded={open ? "true" : "false"}
+      >
+        Lectures
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 mt-2 w-44 rounded-xl border bg-white text-slate-900 shadow-lg
+                     border-black/10 dark:bg-slate-800 dark:text-white dark:border-white/15 z-50"
+        >
+          <button
+            role="menuitem"
+            onClick={() => { setOpen(false); onSelect("lecture1"); }}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 rounded-xl"
+          >
+            Lecture 1
+          </button>
+          {/* Add more later:
+          <button onClick={() => { setOpen(false); onSelect('lecture2'); }} className="w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 rounded-xl">Lecture 2</button>
+          */}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* =========================
-   6) MAIN APP
+   7) MAIN APP
    ========================= */
 export default function App() {
   const [page, setPage] = React.useState("schedule");
@@ -672,7 +963,7 @@ export default function App() {
             <NavBtn id="schedule" label="Schedule" />
             <NavBtn id="staff" label="Staff" />
             <NavBtn id="syllabus" label="Syllabus" />
-            <NavBtn id="docs" label="Docs" />
+            <LecturesMenu onSelect={(id) => setPage(id)} />
           </nav>
         </div>
       </header>
@@ -708,9 +999,9 @@ export default function App() {
         </Section>
       )}
 
-      {page === "docs" && (
-        <Section eyebrow="Reference" title="Documentation">
-          <DocsPage />
+      {page === "lecture1" && (
+        <Section eyebrow="Module 1" title="Lecture 1">
+          <Lecture1Page />
         </Section>
       )}
 
@@ -725,7 +1016,7 @@ export default function App() {
         </div>
       </footer>
 
-      {/* Floating theme toggle (iPhone-safe) */}
+      {/* iPhone-safe floating theme toggle */}
       <ThemeFAB theme={theme} onToggle={toggle} />
     </div>
   );
