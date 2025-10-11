@@ -1,19 +1,15 @@
+// src/App.jsx
 import React from "react";
 import SyllabusPage from "./SyllabusPageHardcoded.jsx";
+import Lectures from "./LecturesPage.jsx"; // ⬅️ separate Lectures page
+import "./index.css";
 
 /* =========================
-   0) CONFIG
+   0) CONFIG (Schedule sheet)
    ========================= */
 const API_KEY  = "AIzaSyCjjW3RjE6y026TTk3qLXDEs-i6RWor30g"; // Sheets API key
 const SHEET_ID = "16Q3GRHir6zs3Vc1M30F_2cpTzp48muh2bCTlmlHdnco"; // schedule sheet
 const TAB_NAME = "Sheet1";
-
-// Read the Docs page for Lecture 1
-const LEC1_URL =
-  "https://tinyml-readthedocs.readthedocs.io/en/latest/module1/Lecture1.html";
-
-// 5-min cache buster (Lecture 1 only)
-const LEC1_SRC = `${LEC1_URL}?v=${Math.floor(Date.now() / (5 * 60 * 1000))}`;
 
 /* =========================
    THEME HOOK
@@ -388,206 +384,18 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
 }
 
 /* =========================
-   5) LECTURE 1 (Read the Docs)
-   ========================= */
-function useRtdPage(url) {
-  const [html, setHtml] = React.useState("");
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState("");
-
-  React.useEffect(() => {
-    if (!url) return;
-    setLoading(true);
-    fetch(url, { credentials: "omit", cache: "no-store", mode: "cors" })
-      .then((r) => {
-        if (!r.ok) throw new Error(`Fetch ${r.status}`);
-        return r.text();
-      })
-      .then((raw) => {
-        const cleaned = sanitizeRtdHTML(raw);
-        setHtml(cleaned);
-        setLoading(false);
-      })
-      .catch((e) => {
-        setError(String(e));
-        setLoading(false);
-      });
-  }, [url]);
-
-  return { html, loading, error };
-}
-
-function sanitizeRtdHTML(rawHtml) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(rawHtml, "text/html");
-
-  // Main content area
-  let main =
-    doc.querySelector('div[role="main"] .document') ||
-    doc.querySelector('div[role="main"]') ||
-    doc.querySelector(".document") ||
-    doc.body;
-
-  // Remove RTD chrome
-  main.querySelectorAll("nav, header, footer, .sphinxsidebar, .wy-nav-side, .toc, .related").forEach((n) => n.remove());
-  // Remove RTD “¶” permalink icons
-  main.querySelectorAll("a.headerlink, a[title^='Permalink']").forEach((n) => n.remove());
-  // Remove scripts/styles
-  main.querySelectorAll("script, style").forEach((n) => n.remove());
-
-  // Allowlist pass
-  const ALLOW = new Set([
-    "section","article","p","br","strong","b","em","u","s","span",
-    "h1","h2","h3","h4","h5","h6","ul","ol","li","a","img","blockquote",
-    "hr","table","thead","tbody","tr","th","td","pre","code","figure","figcaption","div","iframe"
-  ]);
-  const ALLOW_ATTR = new Set([
-    "href","src","alt","title","colspan","rowspan","allow","allowfullscreen","frameborder","loading","referrerpolicy","width","height"
-  ]);
-
-  const walker = doc.createTreeWalker(main, NodeFilter.SHOW_ELEMENT);
-  const toRemove = [];
-  while (walker.nextNode()) {
-    const el = walker.currentNode;
-    if (!ALLOW.has(el.tagName.toLowerCase())) { toRemove.push(el); continue; }
-    [...el.attributes].forEach((attr) => {
-      if (!ALLOW_ATTR.has(attr.name.toLowerCase())) el.removeAttribute(attr.name);
-    });
-  }
-  toRemove.forEach((n) => n.replaceWith(...n.childNodes));
-
-  // Headings
-  main.querySelectorAll("h1").forEach((h) => (h.className = "text-3xl font-semibold mt-6 mb-3 text-slate-900 dark:text-white"));
-  main.querySelectorAll("h2").forEach((h) => (h.className = "text-2xl font-semibold mt-6 mb-3 text-slate-900 dark:text-white"));
-  main.querySelectorAll("h3").forEach((h) => (h.className = "text-xl font-bold mt-5 mb-2.5 text-slate-900 dark:text-white"));
-  main.querySelectorAll("h4,h5,h6").forEach((h) => (h.className = "text-lg font-semibold mt-4 mb-2 text-slate-900 dark:text-white"));
-
-  // Body text
-  main.querySelectorAll("p,li,figcaption").forEach((p) => {
-    p.classList.add("text-[15px]","leading-7","text-slate-800","dark:text-white/90");
-    if (p.tagName.toLowerCase() === "p") p.classList.add("my-3");
-  });
-
-  // Lists
-  main.querySelectorAll("ul").forEach((ul) => (ul.className = "list-disc pl-6 my-3 space-y-1"));
-  main.querySelectorAll("ol").forEach((ol) => (ol.className = "list-decimal pl-6 my-3 space-y-1"));
-
-  // Links & media
-  main.querySelectorAll("a[href]").forEach((a) => {
-    a.target = "_blank";
-    a.rel = "noreferrer";
-    a.className = "underline decoration-slate-400/50 underline-offset-2 hover:text-slate-900 dark:decoration-white/40 dark:hover:text-white";
-  });
-  main.querySelectorAll("img[src]").forEach((img) => {
-    img.className = "max-w-full h-auto rounded-xl border border-black/10 dark:border-white/10 my-3";
-  });
-
-  // Responsive YouTube iframes
-  main.querySelectorAll("iframe[src*='youtube.com'], iframe[src*='youtu.be']").forEach((ifr) => {
-    const wrap = doc.createElement("div");
-    wrap.className = "relative w-full overflow-hidden rounded-xl border border-black/10 dark:border-white/10 my-4";
-    wrap.style.paddingTop = "56.25%"; // 16:9
-    ifr.className = "absolute left-0 top-0 h-full w-full";
-    ifr.setAttribute("allowfullscreen", "");
-    ifr.setAttribute("loading", "lazy");
-    ifr.removeAttribute("width");
-    ifr.removeAttribute("height");
-    ifr.parentNode?.insertBefore(wrap, ifr);
-    wrap.appendChild(ifr);
-  });
-
-  // Admonitions (note/tutorial)
-  main.querySelectorAll(".admonition").forEach((ad) => {
-    const type  = ad.className.match(/\b(note|tutorial)\b/i)?.[1]?.toLowerCase();
-    const title = ad.querySelector(".admonition-title")?.textContent?.trim()
-                || (type ? type[0].toUpperCase() + type.slice(1) : "Note");
-    ad.querySelector(".admonition-title")?.remove();
-
-    const box = doc.createElement("div");
-    box.className =
-      type === "tutorial"
-        ? "border-l-4 border-emerald-400 bg-emerald-50 dark:bg-emerald-900/20 dark:border-emerald-500 text-slate-800 dark:text-white p-4 my-4 rounded-xl"
-        : "border-l-4 border-sky-400 bg-sky-50 dark:bg-sky-900/20 dark:border-sky-500 text-slate-800 dark:text-white p-4 my-4 rounded-xl";
-
-    const header = doc.createElement("div");
-    header.className = "font-semibold mb-1";
-    header.textContent = title;
-
-    const body = doc.createElement("div");
-    body.className = "text-[15px] leading-6";
-    body.innerHTML = ad.innerHTML;
-
-    box.append(header, body);
-    ad.replaceWith(box);
-  });
-
-  // Code blocks
-  main.querySelectorAll("code").forEach((c) => {
-    c.classList.add("px-1.5","py-0.5","rounded","bg-black/5","dark:bg-white/10");
-  });
-  main.querySelectorAll("pre").forEach((pre) => {
-    pre.className = "my-4 p-3 rounded-xl overflow-auto bg-black/5 dark:bg-white/10";
-  });
-
-  // Tables
-  main.querySelectorAll("table").forEach((table) => {
-    table.className = "w-full text-sm border-collapse";
-    table.querySelectorAll("th").forEach((th) =>
-      th.classList.add("text-left","font-semibold","px-3","py-2","bg-black/5","dark:bg-white/10","text-slate-800","dark:text-white")
-    );
-    table.querySelectorAll("td").forEach((td) =>
-      td.classList.add("px-3","py-2","align-top","text-slate-800","dark:text-white/90","border-t","border-black/10","dark:border-white/10")
-    );
-    const wrap = doc.createElement("div");
-    wrap.className = "overflow-x-auto rounded-xl border border-black/10 dark:border-white/10 my-4";
-    table.parentNode?.insertBefore(wrap, table);
-    wrap.appendChild(table);
-  });
-
-  const container = doc.createElement("div");
-  container.append(...main.childNodes);
-  return container.innerHTML;
-}
-
-function Lecture1Page() {
-  const { html, loading, error } = useRtdPage(LEC1_SRC);
-
-  if (loading) return <div className="text-slate-600 dark:text-white/70">Loading lecture…</div>;
-
-  if (error || !html) {
-    return (
-      <div className="rounded-xl overflow-hidden border border-black/10 dark:border-white/10">
-        <iframe
-          src={LEC1_URL}
-          title="Lecture 1"
-          className="w-full"
-          style={{ height: "calc(100vh - 180px)", border: 0 }}
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="mx-auto w-full max-w-4xl">
-      <article
-        className="prose prose-slate max-w-none dark:prose-invert"
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    </div>
-  );
-}
-
-/* =========================
-   6) PAGE CHROME + THEME FAB + LECTURES MENU
+   4) PAGE CHROME
    ========================= */
 function Section({ title, eyebrow, children }) {
   return (
     <section className="mx-auto w-full max-w-6xl px-4 py-12">
       <div className="mb-6">
-        <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-black/5 px-3 py-1 text-xs text-slate-700 dark:border-white/15 dark:bg-white/5 dark:text-white/80">
-          {eyebrow}
-        </div>
-        <h2 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">{title}</h2>
+        {eyebrow && (
+          <div className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-black/5 px-3 py-1 text-xs text-slate-700 dark:border-white/15 dark:bg-white/5 dark:text-white/80">
+            {eyebrow}
+          </div>
+        )}
+        {title && <h2 className="mt-3 text-3xl font-semibold text-slate-900 dark:text-white">{title}</h2>}
       </div>
       {children}
     </section>
@@ -616,56 +424,11 @@ function ThemeFAB({ theme, onToggle }) {
   );
 }
 
-function LecturesMenu({ onSelect }) {
-  const [open, setOpen] = React.useState(false);
-  const ref = React.useRef(null);
-
-  React.useEffect(() => {
-    function onDoc(e) {
-      if (!ref.current || ref.current.contains(e.target)) return;
-      setOpen(false);
-    }
-    document.addEventListener("click", onDoc);
-    return () => document.removeEventListener("click", onDoc);
-  }, []);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="rounded-xl px-3 py-2 text-sm transition border
-                   border-black/10 bg-black/5 text-slate-700 hover:text-slate-900
-                   dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:text-white"
-        aria-haspopup="menu"
-        aria-expanded={open ? "true" : "false"}
-      >
-        Lectures
-      </button>
-
-      {open && (
-        <div
-          role="menu"
-          className="absolute right-0 mt-2 w-44 rounded-xl border bg-white text-slate-900 shadow-lg
-                     border-black/10 dark:bg-slate-800 dark:text-white dark:border-white/15 z-50"
-        >
-          <button
-            role="menuitem"
-            onClick={() => { setOpen(false); onSelect("lecture1"); }}
-            className="w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 rounded-xl"
-          >
-            Lecture 1
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
 /* =========================
-   7) MAIN APP
+   5) MAIN APP
    ========================= */
 export default function App() {
-  const [page, setPage] = React.useState("schedule");
+  const [page, setPage] = React.useState("schedule"); // start on Schedule like your original
   const { theme, toggle } = useTheme();
 
   const NavBtn = ({ id, label }) => (
@@ -683,6 +446,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 dark:bg-slate-900 dark:text-white">
+      {/* Header */}
       <header className="sticky top-0 z-10 border-b border-black/10 bg-white/80 backdrop-blur dark:border-white/10 dark:bg-slate-900/80">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
           <div className="flex items-center gap-3">
@@ -694,11 +458,12 @@ export default function App() {
             <NavBtn id="schedule" label="Schedule" />
             <NavBtn id="staff" label="Staff" />
             <NavBtn id="syllabus" label="Syllabus" />
-            <LecturesMenu onSelect={(id) => setPage(id)} />
+            <NavBtn id="lectures" label="Lectures" /> {/* new separate page */}
           </nav>
         </div>
       </header>
 
+      {/* Pages */}
       {page === "home" && (
         <main className="grid place-items-center px-4 py-24">
           <div className="text-center max-w-2xl">
@@ -730,18 +495,15 @@ export default function App() {
         </Section>
       )}
 
-      {page === "lecture1" && (
-        <Section eyebrow="Module 1" title="Lecture 1">
-          <Lecture1Page />
-        </Section>
-      )}
+      {page === "lectures" && <Lectures />}
 
+      {/* Footer */}
       <footer className="mx-auto max-w-6xl px-4 pb-12 text-slate-600 dark:text-white/50">
         <div className="flex items-center justify-between">
           <p className="text-xs">© {new Date().getFullYear()} TinyML @ Penn</p>
           <div className="flex gap-4 text-xs">
             <a href="#" className="hover:text-slate-900 dark:hover:text-white">GitHub</a>
-            <a href="#" className="hover:text-slate-900 dark:hover:text-white">Canvas</a>
+            <a href="#" className="hover:text-slate-900 dark:hover=text-white">Canvas</a>
             <a href="#" className="hover:text-slate-900 dark:hover:text-white">Contact</a>
           </div>
         </div>
