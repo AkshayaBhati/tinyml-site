@@ -26,7 +26,7 @@ const TAs = [
   {
     name: "Akshaya Nidhi Bhati",
     role: "Teaching Assistant",
-    email: "anbhati@seas.upenn.edu",
+    email: "akshayabhati.upenn@gmail.com",
     hours: "Office Hours: Mon 2–3 pm",
     photo: akshayaPhoto || null,
   },
