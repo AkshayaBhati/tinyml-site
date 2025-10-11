@@ -425,6 +425,74 @@ function ThemeFAB({ theme, onToggle }) {
 }
 
 /* =========================
+   4.5) LECTURES DROPDOWN (Modules)
+   ========================= */
+function LecturesMenu({ onSelect }) {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef(null);
+
+  React.useEffect(() => {
+    function onDoc(e) {
+      if (!ref.current || ref.current.contains(e.target)) return;
+      setOpen(false);
+    }
+    document.addEventListener("click", onDoc);
+    return () => document.removeEventListener("click", onDoc);
+  }, []);
+
+  function go(moduleId) {
+    window.location.hash = `#${moduleId}`; // LecturesPage.jsx reads #module1/#module2/#module3
+    onSelect("lectures");                   // switch the main view
+    setOpen(false);
+  }
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="rounded-xl px-3 py-2 text-sm transition border
+                   border-black/10 bg-black/5 text-slate-700 hover:text-slate-900
+                   dark:border-white/10 dark:bg-white/5 dark:text-white/70 dark:hover:text-white"
+        aria-haspopup="menu"
+        aria-expanded={open ? "true" : "false"}
+      >
+        Lectures
+      </button>
+
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 mt-2 w-44 rounded-xl border bg-white text-slate-900 shadow-lg
+                     border-black/10 dark:bg-slate-800 dark:text-white dark:border-white/15 z-50"
+        >
+          <button
+            role="menuitem"
+            onClick={() => go("module1")}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 rounded-xl"
+          >
+            Module 1
+          </button>
+          <button
+            role="menuitem"
+            onClick={() => go("module2")}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 rounded-xl"
+          >
+            Module 2
+          </button>
+          <button
+            role="menuitem"
+            onClick={() => go("module3")}
+            className="w-full text-left px-3 py-2 text-sm hover:bg-black/5 dark:hover:bg-white/10 rounded-xl"
+          >
+            Module 3
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* =========================
    5) MAIN APP
    ========================= */
 export default function App() {
@@ -458,7 +526,8 @@ export default function App() {
             <NavBtn id="schedule" label="Schedule" />
             <NavBtn id="staff" label="Staff" />
             <NavBtn id="syllabus" label="Syllabus" />
-            <NavBtn id="lectures" label="Lectures" /> {/* new separate page */}
+            {/* 🔽 Lectures dropdown (Module 1/2/3) */}
+            <LecturesMenu onSelect={setPage} />
           </nav>
         </div>
       </header>
@@ -503,7 +572,7 @@ export default function App() {
           <p className="text-xs">© {new Date().getFullYear()} TinyML @ Penn</p>
           <div className="flex gap-4 text-xs">
             <a href="#" className="hover:text-slate-900 dark:hover:text-white">GitHub</a>
-            <a href="#" className="hover:text-slate-900 dark:hover=text-white">Canvas</a>
+            <a href="#" className="hover:text-slate-900 dark:hover:text-white">Canvas</a>
             <a href="#" className="hover:text-slate-900 dark:hover:text-white">Contact</a>
           </div>
         </div>
