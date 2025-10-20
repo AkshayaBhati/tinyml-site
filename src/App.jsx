@@ -2,19 +2,15 @@
 import React from "react";
 import SyllabusPage from "./SyllabusPageHardcoded.jsx";
 import Lectures from "./LecturesPage.jsx";
-import StaffPage from "./StaffPage.jsx"; // ⬅️ ADD THIS
+import StaffPage from "./StaffPage.jsx"; 
 import "./index.css";
 
-/* =========================
-   0) CONFIG (Schedule sheet)
-   ========================= */
+/* 0) CONFIG (Schedule sheet) */
 const API_KEY  = "AIzaSyCjjW3RjE6y026TTk3qLXDEs-i6RWor30g";
 const SHEET_ID = "16Q3GRHir6zs3Vc1M30F_2cpTzp48muh2bCTlmlHdnco";
 const TAB_NAME = "Sheet1";
 
-/* =========================
-   THEME HOOK
-   ========================= */
+/* THEME HOOK */
 function useTheme() {
   const [theme, setTheme] = React.useState(
     () =>
@@ -30,9 +26,7 @@ function useTheme() {
   return { theme, toggle: () => setTheme((t) => (t === "dark" ? "light" : "dark")) };
 }
 
-/* =========================
-   1) FETCH + CACHE (Schedule)
-   ========================= */
+/* 1) FETCH + CACHE (Schedule) */
 const CACHE_TTL_MS = 0;
 
 function cacheKey(sheetId, tabName, range = "A:Z") {
@@ -136,9 +130,7 @@ function useSheet({ apiKey, sheetId, tabName }) {
   return state;
 }
 
-/* =========================
-   2) RENDER HELPERS
-   ========================= */
+/* 2) RENDER HELPERS */
 const H   = ({ html }) => <span dangerouslySetInnerHTML={{ __html: html || "" }} />;
 const get = (row, key) => row?.[key] || "";
 function stripHtml(html = "") { const d = document.createElement("div"); d.innerHTML = html; return d.textContent || d.innerText || ""; }
@@ -307,9 +299,7 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
   );
 }
 
-/* =========================
-   4) PAGE CHROME
-   ========================= */
+/* 4) PAGE CHROME */
 function Section({ title, eyebrow, children }) {
   return (
     <section className="mx-auto w-full max-w-6xl px-4 py-12">
@@ -343,9 +333,7 @@ function ThemeFAB({ theme, onToggle }) {
   );
 }
 
-/* =========================
-   4.5) LECTURES DROPDOWN (Modules)
-   ========================= */
+/* 4.5) LECTURES DROPDOWN (Modules) */
 function LecturesMenu({ onSelect }) {
   const [open, setOpen] = React.useState(false);
   const ref = React.useRef(null);
@@ -384,9 +372,7 @@ function LecturesMenu({ onSelect }) {
   );
 }
 
-/* =========================
-   5) MAIN APP
-   ========================= */
+/* 5) MAIN APP */
 export default function App() {
   const [page, setPage] = React.useState("schedule");
   const { theme, toggle } = useTheme();
