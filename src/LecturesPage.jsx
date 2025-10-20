@@ -1,9 +1,7 @@
 // src/Lectures.jsx
 import React from "react";
 
-/* -------------------------------------------------
-   0) CONFIG: Modules → Lectures → RTD URLs
-   ------------------------------------------------- */
+/* 0) CONFIG: Modules → Lectures → RTD URLs */
 const MODULES = [
   {
     id: "module1",
@@ -45,9 +43,7 @@ const MODULES = [
   },
 ];
 
-/* -------------------------------------------------
-   1) URL-hash helpers (#moduleId/lectureId)
-   ------------------------------------------------- */
+/* 1) URL-hash helpers (#moduleId/lectureId) */
 function readHash() {
   const h = (window.location.hash || "").replace(/^#/, "");
   const [moduleId, lectureId] = h.split("/");
@@ -58,9 +54,7 @@ function writeHash(moduleId, lectureId) {
   if (window.location.hash !== next) window.location.hash = next;
 }
 
-/* -------------------------------------------------
-   2) Fetch + sanitize RTD page
-   ------------------------------------------------- */
+/* 2) Fetch + sanitize RTD page */
 function useRtdPage(url) {
   const [html, setHtml] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -157,9 +151,7 @@ function sanitizeRtdHTML(rawHtml) {
   return container.innerHTML;
 }
 
-/* -------------------------------------------------
-   3) UI bits
-   ------------------------------------------------- */
+/* 3) UI bits */
 function Section({ title, eyebrow, children }) {
   return (
     <section className="mx-auto w-full max-w-6xl px-4 py-12">
@@ -241,9 +233,7 @@ function LectureViewer({ title, url }) {
   );
 }
 
-/* -------------------------------------------------
-   4) Page component
-   ------------------------------------------------- */
+/* 4) Page component */
 export default function Lectures() {
   const boot = readHash();
 
