@@ -1,13 +1,12 @@
 // src/StaffPage.jsx
 import React from "react";
 
-// Optional photos (remove the imports or set photo: null if you don’t have these files)
 import rahulPhoto   from "./assets/staff/rahul.jpg";
 import mohitPhoto   from "./assets/staff/mohit.jpg";
 import hansikaPhoto from "./assets/staff/hansika.jpg";
 import akshayaPhoto from "./assets/staff/akshaya.jpg";
 
-/* ========== DATA ========== */
+/* DATA */
 const FACULTY = [
   {
     name: "Rahul Mangharam",
@@ -21,7 +20,6 @@ const FACULTY = [
   },
 ];
 
-// ⬇️ Akshaya first as requested
 const TAs = [
   {
     name: "Akshaya Nidhi Bhati",
@@ -46,7 +44,7 @@ const TAs = [
   },
 ];
 
-/* ========== UI ========== */
+/* UI */
 function Pill({ children }) {
   return (
     <span className="inline-flex items-center rounded-full border border-black/10 bg-black/5 px-2.5 py-0.5 text-xs text-slate-700 dark:border-white/15 dark:bg-white/10 dark:text-white/80">
@@ -150,7 +148,7 @@ function Section({ title, eyebrow, children }) {
   );
 }
 
-/* ========== PAGE ========== */
+/* PAGE */
 export default function StaffPage() {
   return (
     <>
