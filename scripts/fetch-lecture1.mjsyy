@@ -72,7 +72,7 @@ absUrl($(i).attr("src"))));
   $main.find("iframe[src]").each((_, f) => $(f).attr("src", 
 absUrl($(f).attr("src"))));
 
-  // ▶️ Convert any YouTube links to embedded players
+  // Convert any YouTube links to embedded players
   $main.find('a[href*="youtube.com/watch"], 
 a[href*="youtu.be/"]').each((_, a) => {
     const $a = $(a);
@@ -110,7 +110,7 @@ gyroscope; picture-in-picture; web-share"
 "width","height","frameborder","allow","allowfullscreen","loading","referrerpolicy","class","style"
   ]);
 
-  // Unwrap anything not in allowlist; clean attributes
+  // Unwrap anything not in the allowlist; clean attributes
   $main.find("*").each((_, el) => {
     const $el = $(el);
     const tag = String(el.tagName || el.name || "").toLowerCase();
