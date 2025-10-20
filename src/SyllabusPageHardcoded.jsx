@@ -11,8 +11,6 @@ import tinymlGif from "./assets/syllabus/GIF1.gif"; // <-- adjust path/name
 /**
  * TinyML @ Penn — Hardcoded Syllabus Page (absolute URL image fix)
  * - Expects images in: tinyml-site/public/syllabus/
- * - Uses absolute URLs (window.location.origin + BASE_URL) so images render reliably
- *   even when the app is served under /tinyml-site/
  */
 
 // Build a base-aware absolute URL (e.g., http://localhost:5173/tinyml-site/...)
@@ -54,10 +52,8 @@ const Card = ({ title, eyebrow, children }) => (
   </article>
 );
 
-// You said the file is image1.jpg in /public/syllabus/
+// file is image1.jpg in /public/syllabus/
 //const image1Url = absUrlFromPublic("syllabus/image1.jpg");
-//const image2Url = absUrlFromPublic("syllabus/image2.jpg");
-// Update these names/extensions to exactly match what's in public/syllabus/
 const IMAGES = [
   "image1.jpg",
   "image2.jpg",
@@ -108,10 +104,10 @@ export default function SyllabusPage() {
         </div>
       </header>
 
-      {/* ---- Image 1 before A.1 (absolute URL) ---- */}
-      {/* ---- Image 1 before A.1 (themed) ---- */}
+      {/* Image 1 before A.1 (absolute URL) */}
+      {/* Image 1 before A.1 (themed) */}
 
-      {/* ---- Image 1 (hero banner style) ---- */}
+      {/* Image 1 (banner style) */}
       <div className="rounded-2xl border border-black/10 bg-gradient-to-br from-emerald-500/10 to-cyan-500/10 p-1 shadow-sm shadow-black/5 dark:border-white/10">
         <figure className="rounded-[1rem] overflow-hidden ring-1 ring-black/5 dark:ring-white/10">
           <img
