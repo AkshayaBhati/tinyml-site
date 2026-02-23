@@ -268,14 +268,20 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
             const assignment = get(r, "Assignment");
             const quizzes    = get(r, "Quizzes");
 
-            // Read Image column and auto-convert Google Drive share links to direct image URLs
-            const rawImage = stripHtml(get(r, "Image")).trim();
-            const moduleImage = rawImage
+            // Read Image column — handles plain text URLs and hyperlinked cells
+            const rawImageCell = get(r, "Image") || "";
+            const hrefMatch = rawImageCell.match(/href="([^"]+)"/);
+            const rawImage = (hrefMatch ? hrefMatch[1] : stripHtml(rawImageCell)).trim();
+            // TEST_IMAGE: a guaranteed-public image to verify layout while Drive files are being made public.
+            // Once your prof makes the Drive files public, delete the next 3 lines (keep just moduleImage below).
+            const TEST_IMAGE = "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Above_Gotham.jpg/800px-Above_Gotham.jpg";
+            const hasDriveImage = rawImage.includes("drive.google.com");
+            const moduleImage = hasDriveImage
               ? rawImage.replace(
                   /https:\/\/drive\.google\.com\/file\/d\/([^/]+)\/.*/,
                   "https://drive.google.com/uc?export=view&id=$1"
                 )
-              : "";
+              : rawImage || TEST_IMAGE;
 
             const moduleCombined = r._moduleCombined || "";
 
@@ -680,7 +686,7 @@ export default function App() {
 
       {page === "schedule" && (
         <Section
-  eyebrow={`Spring ${new Date().getFullYear()}`}
+  eyebrow={`Fall ${new Date().getFullYear()}`}
   title="Course Schedule">
           <ScheduleCards apiKey={API_KEY} sheetId={SHEET_ID} tabName={TAB_NAME} />
         </Section>
