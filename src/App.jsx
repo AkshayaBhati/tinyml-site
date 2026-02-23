@@ -272,16 +272,12 @@ function ScheduleCards({ apiKey, sheetId, tabName }) {
             const rawImageCell = get(r, "Image") || "";
             const hrefMatch = rawImageCell.match(/href="([^"]+)"/);
             const rawImage = (hrefMatch ? hrefMatch[1] : stripHtml(rawImageCell)).trim();
-            // TEST_IMAGE: a guaranteed-public image to verify layout while Drive files are being made public.
-            // Once your prof makes the Drive files public, delete the next 3 lines (keep just moduleImage below).
-            const TEST_IMAGE = "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/Above_Gotham.jpg/800px-Above_Gotham.jpg";
-            const hasDriveImage = rawImage.includes("drive.google.com");
-            const moduleImage = hasDriveImage
+            const moduleImage = rawImage
               ? rawImage.replace(
                   /https:\/\/drive\.google\.com\/file\/d\/([^/]+)\/.*/,
                   "https://drive.google.com/uc?export=view&id=$1"
                 )
-              : rawImage || TEST_IMAGE;
+              : "";
 
             const moduleCombined = r._moduleCombined || "";
 
